@@ -1,0 +1,6 @@
+data/
+*.bin
+*.lcc
+*.lcp
+*.log
+.DS_Store
