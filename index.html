@@ -466,13 +466,19 @@
 
 
         // ✅ use your Blob folder (PUBLIC, ends with '/')
-        const DATA_BASE = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+        const DATA_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+
+        // sanity-check that meta.lcc is reachable before the viewer loads
+        fetch(DATA_URL, { method: "HEAD" })
+            .then(r => console.log("meta.lcc reachable:", r.ok ? "YES" : r.status))
+            .catch(err => console.warn("Cannot reach meta.lcc:", err));
+
 
         const lccObj = LCCRender.load(
             {
                 camera,
                 scene,
-                dataPath: DATA_BASE,          // ⬅️ was "http://localhost:5501/data/PentHouse/meta.lcc"
+                dataPath: DATA_URL,           // <-- file, not folder
                 renderLib: THREE,
                 canvas: renderer.domElement,
                 renderer,
