@@ -319,7 +319,7 @@
         </div>
 
         <div class="ui-section">
-            <div class="section-title">🚀 MOVEMENT</div>
+            <div class="section-title"> MOVEMENT</div>
             <div class="control-item">
                 <div class="control-key">W / ↑</div>
                 <div class="control-label">Move Forward</div>
@@ -351,7 +351,7 @@
         </div>
 
         <div class="ui-section">
-            <div class="section-title">🎯 QUICK CONTROLS</div>
+            <div class="section-title"> QUICK CONTROLS</div>
             <div class="control-cards">
                 <div class="control-card">
                     <div class="control-icon">👁️</div>
@@ -464,25 +464,46 @@
         };
         controls.update();
 
-        // Load LCC object (kept as-is)
+
+        // ✅ use your Blob folder (PUBLIC, ends with '/')
+        const DATA_BASE = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/";
+
         const lccObj = LCCRender.load(
             {
                 camera,
                 scene,
-                dataPath: "https://7cljve8li97skpij.public.blob.vercel-storage.com/",
+                dataPath: DATA_BASE,          // ⬅️ was "http://localhost:5501/data/PentHouse/meta.lcc"
                 renderLib: THREE,
                 canvas: renderer.domElement,
                 renderer,
             },
             (mesh) => console.log("LCC object Loaded:", mesh),
-            (percent) => console.log("LCC loading:", percent * 100 + "%")
+            (percent) => console.log("LCC loading:", (percent * 100).toFixed(1) + "%")
         );
+
+
+        // // Load LCC object (kept as-is)
+        // const lccObj = LCCRender.load(
+        //     {
+        //         camera,
+        //         scene,
+        //         dataPath: "http://localhost:5501/data/PentHouse/meta.lcc",
+        //         renderLib: THREE,
+        //         canvas: renderer.domElement,
+        //         renderer,
+        //     },
+        //     (mesh) => console.log("LCC object Loaded:", mesh),
+        //     (percent) => console.log("LCC loading:", percent * 100 + "%")
+        // );
+
+
+
         window.obj = lccObj;
         // IMPOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORTANT
         lccObj.useShcoef(true); //enhances the shadow and light
         // lccObj.getCurrentConfig()
         // lccObj.setMaxDistance(50) // in meters for sure
-        lccObj.setMaxSplats(3e6); // شوف المتعة بس بدها جهاز
+        lccObj.setMaxSplats(5e6); // شوف المتعة بس بدها جهاز
 
         // UI cache
         const uiToggle = document.getElementById("ui-toggle");
