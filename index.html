@@ -1,3 +1,11 @@
+<implementation_plan>
+    <!-- EMERGEEEEEEEEEEEEEEEEEEENT -->
+    <!-- - Clean and organize structure: consolidate CSS with variables, group UI sections, and cache DOM/Three.js objects.
+- Remove redundancies: unused variables/comments, duplicate logic, and per-frame allocations.
+- Optimize interactions: reuse vectors/raycaster, correct key mappings, minimal DOM updates, safe disposals.
+- Maintain functionality: same UI/UX behavior, measurement flow, movement/rotation, and dataPath/logo paths. -->
+</implementation_plan>
+
 <!-- Cleaned & enhanced code -->
 <!DOCTYPE html>
 <html lang="en">
@@ -14,9 +22,9 @@
             --white-90: rgba(255, 255, 255, 0.9);
             --white-70: rgba(255, 255, 255, 0.7);
             --white-50: rgba(255, 255, 255, 0.5);
-            --shadow-strong: 0 8px 32px rgba(0, 0, 0, .4);
-            --shadow-medium: 0 4px 15px rgba(0, 0, 0, .4);
-            --shadow-soft: 0 2px 6px rgba(0, 0, 0, .3);
+            --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.4);
+            --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.3);
         }
 
         * {
@@ -26,12 +34,14 @@
         }
 
         body {
+            margin: 0;
             overflow: hidden;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg);
             color: #fff;
         }
 
+        /* Panels (hidden by default; toggle via .visible) */
         #ui-container,
         #measurement-panel {
             position: absolute;
@@ -43,7 +53,7 @@
             border: 1px solid var(--panel-border);
             box-shadow: var(--shadow-strong);
             backdrop-filter: blur(10px);
-            transition: transform .3s ease, opacity .3s ease;
+            transition: transform 0.3s ease, opacity 0.3s ease;
             opacity: 0;
         }
 
@@ -73,6 +83,7 @@
             opacity: 1;
         }
 
+        /* Round toggle buttons */
         .ui-toggle,
         .measurement-toggle {
             position: absolute;
@@ -90,7 +101,7 @@
             align-items: center;
             justify-content: center;
             box-shadow: var(--shadow-medium);
-            transition: all .3s ease;
+            transition: all 0.3s ease;
             font-weight: bold;
         }
 
@@ -156,6 +167,7 @@
             margin-left: 8px;
         }
 
+        /* Visual control cards */
         .control-cards {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -169,9 +181,9 @@
             align-items: center;
             gap: 4px;
             padding: 8px;
-            background: rgba(255, 255, 255, .1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, .1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .control-icon {
@@ -184,7 +196,7 @@
             justify-content: center;
             color: #000;
             font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .control-card .control-key {
@@ -202,10 +214,11 @@
             text-align: center;
         }
 
+        /* Indicators */
         #movement-indicator,
         #rotation-indicator {
             position: absolute;
-            background: rgba(0, 0, 0, .9);
+            background: rgba(0, 0, 0, 0.9);
             color: #fff;
             padding: 10px 20px;
             border-radius: 20px;
@@ -229,6 +242,7 @@
             transform: translateX(-50%);
         }
 
+        /* Logo */
         #vihouse-logo {
             position: absolute;
             bottom: 20px;
@@ -249,8 +263,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, .4);
-            border: 2px solid rgba(255, 255, 255, .8);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.8);
             padding: 12px;
             overflow: hidden;
         }
@@ -275,9 +289,13 @@
 </head>
 
 <body>
-    <button class="ui-toggle" id="ui-toggle" aria-label="Toggle controls" data-testid="toggle-controls">⚙️</button>
+    <button class="ui-toggle" id="ui-toggle" aria-label="Toggle controls" data-testid="toggle-controls">
+        ⚙️
+    </button>
     <button class="measurement-toggle" id="measurement-toggle" aria-label="Toggle measurement panel"
-        data-testid="toggle-measurement">📐</button>
+        data-testid="toggle-measurement">
+        📐
+    </button>
 
     <div id="ui-container" aria-hidden="true" data-testid="controls-panel">
         <div class="ui-section">
@@ -362,40 +380,55 @@
     <div id="measurement-panel" aria-hidden="true" data-testid="measurement-panel">
         <div class="section-title">📐 MEASUREMENT TOOL</div>
         <div class="measurement-controls">
-            <button class="measure-btn" id="start-measure" data-testid="start-measure">Start Measure</button>
-            <button class="measure-btn" id="clear-measure" data-testid="clear-measure" disabled>Clear</button>
+            <button class="measure-btn" id="start-measure" data-testid="start-measure">
+                Start Measure
+            </button>
+            <button class="measure-btn" id="clear-measure" data-testid="clear-measure" disabled>
+                Clear
+            </button>
         </div>
         <div class="measurement-info">
-            <div style="font-size:11px;color:var(--white-70);margin-bottom:6px">Click two points in the 3D space to
-                measure distance</div>
-            <div class="measurement-result" id="distance-result" data-testid="distance-result">0.00 m</div>
-            <div class="measurement-points" id="points-info" data-testid="points-info">Click first point...</div>
+            <div style="font-size: 11px; color: var(--white-70); margin-bottom: 6px">
+                Click two points in the 3D space to measure distance
+            </div>
+            <div class="measurement-result" id="distance-result" data-testid="distance-result">
+                0.00 m
+            </div>
+            <div class="measurement-points" id="points-info" data-testid="points-info">
+                Click first point...
+            </div>
         </div>
     </div>
 
     <div id="vihouse-logo" data-testid="vihouse-logo">
-        <div class="logo-container"><img src="images/VIEHOUSE_logo.png" alt="VIEHOUSE Logo" /></div>
+        <div class="logo-container">
+            <img src="images/VIEHOUSE_logo.png" alt="VIEHOUSE Logo" />
+        </div>
         <div class="powered-by">POWERED BY<br />VIEHOUSE</div>
     </div>
 
-    <div id="movement-indicator" data-testid="movement-indicator">Moving...</div>
-    <div id="rotation-indicator" data-testid="rotation-indicator">Rotating Camera...</div>
+    <div id="movement-indicator" data-testid="movement-indicator">
+        Moving...
+    </div>
+    <div id="rotation-indicator" data-testid="rotation-indicator">
+        Rotating Camera...
+    </div>
 
     <script type="importmap">
-    {
-      "imports": {
-        "three": "./lib/three/three.module.js",
-        "three/addons/": "./lib/three/jsm/"
+      {
+        "imports": {
+          "three": "./lib/three/three.module.js",
+          "three/addons/": "./lib/three/jsm/"
+        }
       }
-    }
-  </script>
+    </script>
 
     <script type="module">
         import * as THREE from "three";
         import { OrbitControls } from "three/addons/controls/OrbitControls.js";
         import { LCCRender } from "./sdk/lcc-0.4.0.js";
 
-        // ----- Scene & renderer -----
+        // Scene & renderer
         const scene = new THREE.Scene();
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -403,81 +436,76 @@
         renderer.setClearColor(0x1a1a1a);
         document.body.appendChild(renderer.domElement);
 
-        // ----- Camera -----
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
         camera.up.set(0, 0, 1);
         camera.position.set(9, 2, 2);
+        // Manual rotation state
         const cameraRotation = { yaw: 0, pitch: 0 };
 
-        // ----- Controls -----
+        // OrbitControls for pan/zoom; rotation is manual
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableRotate = false; // rotation handled manually
+        controls.enableRotate = false;
         controls.enableZoom = true;
         controls.enablePan = true;
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.panSpeed = 1.5;
         controls.zoomSpeed = 1.2;
-        controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+        controls.mouseButtons = {
+            LEFT: null,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+        };
         controls.update();
 
-        // ========= LCC DATA (Blob) =========
-        // your meta.lcc on Vercel Blob (same folder contains index.bin/data.bin/...):
-        const FILE_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
-        const FOLDER_URL = new URL("./", FILE_URL).href; // ends with "/"
 
-        async function pickDataPath() {
-            try {
-                const f = await fetch(FILE_URL, { method: "HEAD" });
-                console.log("[precheck] FILE_URL meta.lcc:", f.status, f.ok ? "OK" : "");
-                if (f.ok) return FILE_URL;       // many builds accept meta.lcc file path
+        // ✅ use your Blob folder (PUBLIC, ends with '/')
+        const DATA_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
 
-                const g = await fetch(FOLDER_URL + "meta.lcc", { method: "HEAD" });
-                console.log("[precheck] FOLDER_URL/meta.lcc:", g.status, g.ok ? "OK" : "");
-                if (g.ok) return FOLDER_URL;     // some builds expect the folder
+        const lccObj = LCCRender.load(
+            {
+                camera,
+                scene,
+                dataPath: DATA_URL,           // <-- file, not folder
+                renderLib: THREE,
+                canvas: renderer.domElement,
+                renderer,
+            },
+            (mesh) => console.log("LCC object Loaded:", mesh),
+            (percent) => console.log("LCC loading:", (percent * 100).toFixed(1) + "%")
+        );
 
-                throw new Error("meta.lcc not reachable at either FILE_URL or FOLDER_URL");
-            } catch (err) {
-                console.error("[precheck] error checking meta.lcc:", err);
-                return null;
-            }
-        }
 
-        (async () => {
-            const dataPath = await pickDataPath();
-            if (!dataPath) {
-                console.error("❌ meta.lcc not reachable. Check that the Blob file is public and the URL is correct.");
-                return;
-            }
+        // // Load LCC object (kept as-is)
+        // const lccObj = LCCRender.load(
+        //     {
+        //         camera,
+        //         scene,
+        //         dataPath: "http://localhost:5501/data/PentHouse/meta.lcc",
+        //         renderLib: THREE,
+        //         canvas: renderer.domElement,
+        //         renderer,
+        //     },
+        //     (mesh) => console.log("LCC object Loaded:", mesh),
+        //     (percent) => console.log("LCC loading:", percent * 100 + "%")
+        // );
 
-            // verify siblings exist; logs 200/404 so you know exactly what's missing
-            for (const name of ["index.bin", "data.bin", "shcoef.bin", "environment.bin", "attrs.lcp", "thumb.jpg"]) {
-                const url = dataPath.endsWith("/") ? dataPath + name : new URL(name, dataPath).href;
-                fetch(url, { method: "HEAD" })
-                    .then(r => console.log(`[precheck] ${name}:`, r.status, r.ok ? "OK" : ""))
-                    .catch(e => console.warn(`[precheck] ${name}: network error`, e));
-            }
 
-            // ----- Load LCC -----
-            const lccObj = LCCRender.load(
-                {
-                    camera,
-                    scene,
-                    dataPath,            // either FILE_URL (meta.lcc) or FOLDER_URL (folder) depending on what passed
-                    renderLib: THREE,
-                    canvas: renderer.domElement,
-                    renderer,
-                },
-                (mesh) => console.log("✅ LCC object loaded", mesh),
-                (percent) => console.log("⏳ LCC loading", (percent * 100).toFixed(1) + "%")
-            );
 
-            window.obj = lccObj;
-            lccObj.useShcoef(true);
-            lccObj.setMaxSplats(5e6);
-        })();
+        window.obj = lccObj;
+        // IMPOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORTANT
+        lccObj.useShcoef(true); //enhances the shadow and light
+        // lccObj.getCurrentConfig()
+        // lccObj.setMaxDistance(50) // in meters for sure
+        lccObj.setMaxSplats(5e6); // شوف المتعة بس بدها جهاز
 
-        // ----- UI refs -----
+        // UI cache
         const uiToggle = document.getElementById("ui-toggle");
         const uiContainer = document.getElementById("ui-container");
         const measurementToggle = document.getElementById("measurement-toggle");
@@ -489,7 +517,7 @@
         const distanceResultEl = document.getElementById("distance-result");
         const pointsInfoEl = document.getElementById("points-info");
 
-        // ----- State & helpers (unchanged movement logic) -----
+        // State
         let uiVisible = false;
         let measurementVisible = false;
         const baseSpeed = 0.1;
@@ -497,6 +525,7 @@
         const keysPressed = {};
         let isRotating = false;
 
+        // Reusable objects to reduce allocations
         const vForward = new THREE.Vector3();
         const vRight = new THREE.Vector3();
         const vMove = new THREE.Vector3();
@@ -506,15 +535,19 @@
         const intersectionPoint = new THREE.Vector3();
         const tmpRay = new THREE.Ray();
 
+        // Measurement
         let isMeasuring = false;
         let measurementPoints = [];
         let measurementLine = null;
         let measurementSpheres = [];
-        const measurementMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+        const measurementMaterial = new THREE.LineBasicMaterial({
+            color: 0xff0000,
+            linewidth: 2,
+        });
         const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
         const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
-        // ----- UI toggles -----
+        // UI toggles
         uiToggle.addEventListener("click", () => {
             uiVisible = !uiVisible;
             uiContainer.classList.toggle("visible", uiVisible);
@@ -525,10 +558,14 @@
         measurementToggle.addEventListener("click", () => {
             measurementVisible = !measurementVisible;
             measurementPanel.classList.toggle("visible", measurementVisible);
-            measurementPanel.setAttribute("aria-hidden", String(!measurementVisible));
+            measurementPanel.setAttribute(
+                "aria-hidden",
+                String(!measurementVisible)
+            );
             measurementToggle.textContent = measurementVisible ? "✕" : "📐";
         });
 
+        // Measurement controls
         function startMeasurement() {
             isMeasuring = true;
             measurementPoints = [];
@@ -537,6 +574,7 @@
             pointsInfoEl.textContent = "Click first point in 3D space...";
             clearMeasureBtn.disabled = false;
         }
+
         function clearMeasurement() {
             isMeasuring = false;
             measurementPoints = [];
@@ -546,48 +584,72 @@
             distanceResultEl.textContent = "0.00 m";
             clearMeasureBtn.disabled = true;
         }
+
         function clearMeasurementVisuals() {
             if (measurementLine) {
                 scene.remove(measurementLine);
                 measurementLine.geometry.dispose();
                 measurementLine = null;
             }
-            for (const s of measurementSpheres) scene.remove(s);
+            for (const sphere of measurementSpheres) {
+                scene.remove(sphere);
+            }
             measurementSpheres = [];
         }
-        function addMeasurementPoint(pt) {
-            measurementPoints.push(pt.clone());
+
+        function addMeasurementPoint(point) {
+            measurementPoints.push(point.clone());
+
             const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            sphere.position.copy(pt);
+            sphere.position.copy(point);
             scene.add(sphere);
             measurementSpheres.push(sphere);
+
             if (measurementPoints.length === 1) {
                 startMeasureBtn.textContent = "Click Second Point";
                 pointsInfoEl.textContent = "First point set. Click second point...";
             } else if (measurementPoints.length === 2) {
-                const d = measurementPoints[0].distanceTo(measurementPoints[1]);
-                distanceResultEl.textContent = `${d.toFixed(2)} m`;
-                const lineGeometry = new THREE.BufferGeometry().setFromPoints(measurementPoints);
-                measurementLine = new THREE.Line(lineGeometry, measurementMaterial);
-                scene.add(measurementLine);
+                calculateDistance();
                 startMeasureBtn.textContent = "New Measure";
-                pointsInfoEl.textContent = 'Measurement complete. Click "New Measure" to start over.';
+                pointsInfoEl.textContent =
+                    'Measurement complete. Click "New Measure" to start over.';
             }
+        }
+
+        function calculateDistance() {
+            if (measurementPoints.length !== 2) return;
+            const distance = measurementPoints[0].distanceTo(measurementPoints[1]);
+            distanceResultEl.textContent = `${distance.toFixed(2)} m`;
+
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(
+                measurementPoints
+            );
+            measurementLine = new THREE.Line(lineGeometry, measurementMaterial);
+            scene.add(measurementLine);
         }
 
         startMeasureBtn.addEventListener("click", startMeasurement);
         clearMeasureBtn.addEventListener("click", clearMeasurement);
 
-        renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
+        // Mouse interaction
+        renderer.domElement.addEventListener("contextmenu", (e) =>
+            e.preventDefault()
+        );
+
         renderer.domElement.addEventListener("mousedown", (event) => {
             if (event.button !== 0) return;
+
             if (isMeasuring) {
                 mouseNDC.x = (event.clientX / window.innerWidth) * 2 - 1;
                 mouseNDC.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
                 raycaster.setFromCamera(mouseNDC, camera);
                 tmpRay.origin.copy(camera.position);
                 tmpRay.direction.copy(raycaster.ray.direction);
-                if (tmpRay.intersectPlane(groundPlane, intersectionPoint)) addMeasurementPoint(intersectionPoint);
+
+                if (tmpRay.intersectPlane(groundPlane, intersectionPoint)) {
+                    addMeasurementPoint(intersectionPoint);
+                }
             } else {
                 isRotating = true;
                 renderer.domElement.requestPointerLock();
@@ -595,12 +657,14 @@
             }
             event.preventDefault();
         });
+
         renderer.domElement.addEventListener("mouseup", (event) => {
             if (event.button !== 0) return;
             isRotating = false;
             document.exitPointerLock();
             rotationIndicator.style.display = "none";
         });
+
         renderer.domElement.addEventListener("mousemove", (event) => {
             if (!isRotating || isMeasuring) return;
             const dx = event.movementX ?? 0;
@@ -608,56 +672,114 @@
             if (dx !== 0 || dy !== 0) updateCameraRotation(dx, dy);
         });
 
+        // Keyboard
         window.addEventListener("keydown", (e) => {
             const key = e.key.toLowerCase();
             keysPressed[key] = true;
-            if (key === "r") { resetCamera(); e.preventDefault(); }
-            else if (key === "m") { isMeasuring ? clearMeasurement() : startMeasurement(); e.preventDefault(); }
-            if (["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+
+            if (key === "r") {
+                resetCamera();
+                e.preventDefault();
+            } else if (key === "m") {
+                isMeasuring ? clearMeasurement() : startMeasurement();
+                e.preventDefault();
+            }
+
+            if (
+                [
+                    "w",
+                    "a",
+                    "s",
+                    "d",
+                    "q",
+                    "e",
+                    "arrowup",
+                    "arrowdown",
+                    "arrowleft",
+                    "arrowright",
+                ].includes(key)
+            ) {
                 movementIndicator.style.display = "block";
-                movementIndicator.textContent = keysPressed["shift"] ? "TURBO MODE - Running..." : "Moving...";
+                movementIndicator.textContent = keysPressed["shift"]
+                    ? "TURBO MODE - Running..."
+                    : "Moving...";
             }
         });
+
         window.addEventListener("keyup", (e) => {
             const key = e.key.toLowerCase();
             keysPressed[key] = false;
-            if (["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+
+            if (
+                [
+                    "w",
+                    "a",
+                    "s",
+                    "d",
+                    "q",
+                    "e",
+                    "arrowup",
+                    "arrowdown",
+                    "arrowleft",
+                    "arrowright",
+                ].includes(key)
+            ) {
                 movementIndicator.style.display = "none";
             }
         });
 
+        // Rotation helpers
         function updateCameraRotation(deltaX, deltaY) {
             const sensitivity = 0.002;
             cameraRotation.yaw -= deltaX * sensitivity;
             cameraRotation.pitch -= deltaY * sensitivity;
-            const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), cameraRotation.yaw);
-            const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cameraRotation.pitch);
+
+            const qYaw = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(0, 0, 1),
+                cameraRotation.yaw
+            );
+            const qPitch = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(1, 0, 0),
+                cameraRotation.pitch
+            );
             const q = new THREE.Quaternion().multiplyQuaternions(qYaw, qPitch);
+
             camera.setRotationFromQuaternion(q);
             updateControlsTarget();
         }
+
         function resetCamera() {
+            // IMPPPPPPPPPPORTANT to set the intial point.
             camera.position.set(9, 2, 2);
-            cameraRotation.yaw = 0; cameraRotation.pitch = 0;
+            cameraRotation.yaw = 0;
+            cameraRotation.pitch = 0;
             camera.setRotationFromEuler(new THREE.Euler(0, 0, 0));
             updateControlsTarget();
         }
+
         function updateControlsTarget() {
             camera.getWorldDirection(vForward);
             controls.target.copy(camera.position).add(vForward.multiplyScalar(10));
         }
 
+        // Movement update (WASD + arrows + QE)
         function updateMovement() {
             const speed = keysPressed["shift"] ? runSpeed : baseSpeed;
-            camera.getWorldDirection(vForward); vForward.z = 0; vForward.normalize();
+
+            camera.getWorldDirection(vForward);
+            vForward.z = 0;
+            vForward.normalize();
+
             vRight.set(-vForward.y, vForward.x, 0);
             vMove.set(0, 0, 0);
+
             if (keysPressed["w"] || keysPressed["arrowup"]) vMove.add(vForward);
             if (keysPressed["s"] || keysPressed["arrowdown"]) vMove.sub(vForward);
-            if (keysPressed["a"] || keysPressed["arrowright"]) vMove.add(vRight);   /* left/right kept as you had */
+            if (keysPressed["a"] || keysPressed["arrowright"]) vMove.add(vRight);
             if (keysPressed["d"] || keysPressed["arrowleft"]) vMove.sub(vRight);
             if (keysPressed["q"]) vMove.z += 1;
             if (keysPressed["e"]) vMove.z -= 1;
+
             if (vMove.lengthSq() > 0) {
                 vMove.normalize().multiplyScalar(speed);
                 camera.position.add(vMove);
@@ -665,6 +787,7 @@
             }
         }
 
+        // Main loop
         function animate() {
             renderer.setAnimationLoop(() => {
                 updateMovement();
@@ -673,11 +796,14 @@
                 renderer.render(scene, camera);
             });
         }
+
+        // Resize
         window.addEventListener("resize", () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
         animate();
     </script>
 </body>
