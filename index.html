@@ -465,27 +465,93 @@
         controls.update();
 
 
-        // ✅ use your Blob folder (PUBLIC, ends with '/')
-        const DATA_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+        // ====== LCC DATA (Blob) ======
+        // your meta.lcc on Vercel Blob:
+        const FILE_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+        // derive the base folder (ends with "/")
+        const FOLDER_URL = new URL("./", FILE_URL).href;
 
-        // sanity-check that meta.lcc is reachable before the viewer loads
-        fetch(DATA_URL, { method: "HEAD" })
-            .then(r => console.log("meta.lcc reachable:", r.ok ? "YES" : r.status))
-            .catch(err => console.warn("Cannot reach meta.lcc:", err));
+        // quick preflight so you immediately see path problems
+        async function pickDataPath() {
+            try {
+                // does the meta.lcc file exist at FILE_URL?
+                const f = await fetch(FILE_URL, { method: "HEAD" });
+                console.log("[precheck] FILE_URL meta.lcc:", f.status, f.ok ? "OK" : "");
+                if (f.ok) return FILE_URL; // many LCC builds accept the file path directly
+
+                // if not, try the folder style (some builds expect a folder and append meta.lcc)
+                const g = await fetch(FOLDER_URL + "meta.lcc", { method: "HEAD" });
+                console.log("[precheck] FOLDER_URL/meta.lcc:", g.status, g.ok ? "OK" : "");
+                if (g.ok) return FOLDER_URL;
+
+                // nothing worked -> tell you exactly what failed
+                throw new Error("meta.lcc not reachable at either FILE_URL or FOLDER_URL");
+            } catch (err) {
+                console.error("[precheck] error checking meta.lcc:", err);
+                return null;
+            }
+        }
+
+        (async () => {
+            const dataPath = await pickDataPath();
+            if (!dataPath) {
+                console.error("❌ meta.lcc not reachable. Check the URL & that the file is public.");
+                // TIP: open these two in the browser:
+                // 1) https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc
+                // 2) https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/
+                return;
+            }
+
+            // extra: verify the sibling files exist (will log 200 / 404)
+            for (const name of [
+                "index.bin",
+                "data.bin",
+                "shcoef.bin",
+                "environment.bin",
+                "attrs.lcp",
+                "thumb.jpg",
+            ]) {
+                const url = dataPath.endsWith("/") ? dataPath + name : new URL(name, dataPath).href;
+                fetch(url, { method: "HEAD" })
+                    .then(r => console.log(`[precheck] ${name}:`, r.status, r.ok ? "OK" : ""))
+                    .catch(e => console.warn(`[precheck] ${name}: network error`, e));
+            }
+
+            // finally load
+            const lccObj = LCCRender.load(
+                {
+                    camera,
+                    scene,
+                    dataPath,            // either FILE_URL or FOLDER_URL (whichever passed)
+                    renderLib: THREE,
+                    canvas: renderer.domElement,
+                    renderer,
+                },
+                (mesh) => console.log("✅ LCC object loaded", mesh),
+                (percent) => console.log("⏳ LCC loading", (percent * 100).toFixed(1) + "%")
+            );
+
+            window.obj = lccObj;
+            lccObj.useShcoef(true);
+            lccObj.setMaxSplats(5e6);
+        })();
 
 
-        const lccObj = LCCRender.load(
-            {
-                camera,
-                scene,
-                dataPath: DATA_URL,           // <-- file, not folder
-                renderLib: THREE,
-                canvas: renderer.domElement,
-                renderer,
-            },
-            (mesh) => console.log("LCC object Loaded:", mesh),
-            (percent) => console.log("LCC loading:", (percent * 100).toFixed(1) + "%")
-        );
+        // // ✅ use your Blob folder (PUBLIC, ends with '/')
+        // const DATA_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+
+        // const lccObj = LCCRender.load(
+        //     {
+        //         camera,
+        //         scene,
+        //         dataPath: DATA_URL,           // <-- file, not folder
+        //         renderLib: THREE,
+        //         canvas: renderer.domElement,
+        //         renderer,
+        //     },
+        //     (mesh) => console.log("LCC object Loaded:", mesh),
+        //     (percent) => console.log("LCC loading:", (percent * 100).toFixed(1) + "%")
+        // );
 
 
         // // Load LCC object (kept as-is)
