@@ -2,14 +2,13 @@
 <html lang="en">
 
 <head>
-  <!-- Use correct character set. -->
   <meta charset="utf-8" />
-  <!-- Tell IE to use the latest, best version. -->
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!-- Make the application on mobile take up the full browser screen and disable user scaling. -->
   <meta name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
   <title>LCC CesiumJS Demo</title>
+
+  <!-- Cesium assets served from your repo -->
   <script src="lib/cesium/Cesium.js"></script>
   <style>
     @import url(./lib/cesium/widgets.css);
@@ -28,54 +27,90 @@
 
 <body>
   <div id="cesiumContainer"></div>
+
   <script type="module">
     import { LCCRender } from './sdk/lcc-0.4.0.js';
-    // Maybe you need to create an access token of your own.  https://cesium.com/learn/ion/cesium-ion-access-tokens/
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkYmM5NzM2My1lYzJmLTQ1OTItOWY0Ny02ODA4ODAyZDU5ZGYiLCJpZCI6MTIzODEwLCJpYXQiOjE3MzM4ODc5NTZ9.DuzU2nv8QeXEmdsGnfTN9rrIb2Nygter-h7rDwhqUE4'
+
+    // (Use your own token if needed)
+    Cesium.Ion.defaultAccessToken =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkYmM5NzM2My1lYzJmLTQ1OTItOWY0Ny02ODA4ODAyZDU5ZGYiLCJpZCI6MTIzODEwLCJpYXQiOjE3MzM4ODc5NTZ9.DuzU2nv8QeXEmdsGnfTN9rrIb2Nygter-h7rDwhqUE4';
 
     const viewer = new Cesium.Viewer("cesiumContainer", {
-      orderIndependentTranslucency: false, // Close order-independent rendering
+      orderIndependentTranslucency: false,
       useDefaultRenderLoop: true,
       resolutionScale: window.devicePixelRatio,
     });
+    viewer.scene.debugShowFramesPerSecond = true;
 
-    viewer.scene.debugShowFramesPerSecond = true
+    // Local ENU frame for positioning
+    const m1 = Cesium.Transforms.eastNorthUpToFixedFrame(
+      Cesium.Cartesian3.fromDegrees(114.0592, 22.5429, 10)
+    );
 
-    // Get the global coordinates of the local coordinate origin
-    const cartesian3 = Cesium.Cartesian3.fromDegrees(114.0592, 22.5429, 60);
-    // The local coordinate z-axis is perpendicular to the ground, and the local coordinate y-axis points to the north.
-    const m1 = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(114.0592, 22.5429, 10));
+    // ========= LCC data on Vercel Blob =========
+    // Your folder is **LegoPanda** (lowercase 'o')
+    const FILE_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/LegoPanda/meta.lcc";
+    const FOLDER_URL = new URL("./", FILE_URL).href; // ends with '/'
 
-    const lccObj = LCCRender.load({
-      camera: viewer.camera,
-      scene: viewer.scene,
-      dataPath: 'http://localhost:5500/data/LEGOPanda', // Lcc data path
-      renderLib: Cesium,
-      modelMatrix: m1, // Init matrix
-      canvas: viewer.scene.canvas,
-      useEnv: false
-    }, (mesh) => {  
-      console.log("Lcc object loaded: ", mesh);
+    async function pickDataPath() {
+      try {
+        // try file style (…/meta.lcc)
+        const f = await fetch(FILE_URL, { method: "HEAD" });
+        console.log("[precheck] meta.lcc (FILE_URL):", f.status, f.ok ? "OK" : "");
+        if (f.ok) return FILE_URL;
 
-      let cartesian = lccObj.getTranslation();
+        // try folder style (…/LegoPanda/ + meta.lcc)
+        const g = await fetch(FOLDER_URL + "meta.lcc", { method: "HEAD" });
+        console.log("[precheck] meta.lcc (FOLDER_URL):", g.status, g.ok ? "OK" : "");
+        if (g.ok) return FOLDER_URL;
 
-      console.log("cartesian: ", cartesian)
+        throw new Error("meta.lcc not reachable at FILE_URL or FOLDER_URL");
+      } catch (err) {
+        console.error("[precheck] error:", err);
+        return null;
+      }
+    }
 
-      let point = {
-        position: cartesian,
-        point: { pixelSize: 2, color: Cesium.Color.RED }
+    (async () => {
+      const dataPath = await pickDataPath();
+      if (!dataPath) {
+        console.error("❌ meta.lcc unreachable (check public access & exact filenames).");
+        return;
       }
 
-      const entity = viewer.entities.add(point)
+      // Optional: verify sibling files exist (fast HEAD requests)
+      for (const name of ["index.bin", "data.bin", "shcoef.bin", "environment.bin", "attrs.lcp", "thumb.jpg"]) {
+        const url = dataPath.endsWith("/") ? dataPath + name : new URL(name, dataPath).href;
+        fetch(url, { method: "HEAD" })
+          .then(r => console.log(`[precheck] ${name}:`, r.status, r.ok ? "OK" : ""))
+          .catch(e => console.warn(`[precheck] ${name}: network error`, e));
+      }
 
-      viewer.flyTo(entity)
+      // Load LCC into Cesium
+      const lccObj = LCCRender.load({
+        camera: viewer.camera,
+        scene: viewer.scene,
+        dataPath,                 // <- FILE_URL or FOLDER_URL (whichever worked)
+        renderLib: Cesium,
+        modelMatrix: m1,
+        canvas: viewer.scene.canvas,
+        useEnv: false
+      }, (mesh) => {
+        console.log("✅ Lcc object loaded:", mesh);
+        const cartesian = lccObj.getTranslation?.();
+        if (cartesian) {
+          const entity = viewer.entities.add({
+            position: cartesian,
+            point: { pixelSize: 2, color: Cesium.Color.RED }
+          });
+          viewer.flyTo(entity);
+        }
+      }, (percent) => {
+        console.log("⏳ Lcc loading:", (percent * 100).toFixed(1) + "%");
+      });
 
-    }, (percent) => {
-      console.log("Lcc object loading: " + percent * 100 + "%");
-    });
-
-    window.obj = lccObj
-
+      window.obj = lccObj;
+    })();
   </script>
 </body>
 
