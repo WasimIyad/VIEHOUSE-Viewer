@@ -1,417 +1,635 @@
-<implementation_plan>
-    <!-- EMERGEEEEEEEEEEEEEEEEEEENT -->
-    <!-- - Clean and organize structure: consolidate CSS with variables, group UI sections, and cache DOM/Three.js objects.
-- Remove redundancies: unused variables/comments, duplicate logic, and per-frame allocations.
-- Optimize interactions: reuse vectors/raycaster, correct key mappings, minimal DOM updates, safe disposals.
-- Maintain functionality: same UI/UX behavior, measurement flow, movement/rotation, and dataPath/logo paths. -->
-</implementation_plan>
-
-<!-- Cleaned & enhanced code -->
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>VIEHOUSE - 3D Property Viewer</title>
     <style>
-        :root {
-            --bg: #1a1a1a;
-            --panel-bg: rgba(0, 0, 0, 0.85);
-            --panel-border: rgba(255, 255, 255, 0.2);
-            --white-90: rgba(255, 255, 255, 0.9);
-            --white-70: rgba(255, 255, 255, 0.7);
-            --white-50: rgba(255, 255, 255, 0.5);
-            --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.4);
-            --shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.4);
-            --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.3);
-        }
+      :root {
+        --bg: #1a1a1a;
+        --panel-bg: rgba(0, 0, 0, 0.85);
+        --panel-border: rgba(255, 255, 255, 0.2);
+        --white-90: rgba(255, 255, 255, 0.9);
+        --white-70: rgba(255, 255, 255, 0.7);
+        --white-50: rgba(255, 255, 255, 0.5);
+        --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.4);
+        --shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.4);
+        --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg);
-            color: #fff;
-        }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg);
+        color: #fff;
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
 
-        /* Panels (hidden by default; toggle via .visible) */
-        #ui-container,
-        #measurement-panel {
-            position: absolute;
-            background: var(--panel-bg);
-            padding: 15px;
-            border-radius: 15px;
-            font-size: 13px;
-            z-index: 100;
-            border: 1px solid var(--panel-border);
-            box-shadow: var(--shadow-strong);
-            backdrop-filter: blur(10px);
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            opacity: 0;
-        }
+      /* Loading Screen */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+      }
 
-        #ui-container {
-            top: 20px;
-            left: 20px;
-            max-width: 280px;
-            pointer-events: none;
-            transform: translateX(-100%);
-        }
+      #loading-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
 
-        #ui-container.visible {
-            transform: translateX(0);
-            opacity: 1;
-        }
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid #ffffff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      }
 
-        #measurement-panel {
-            top: 20px;
-            right: 20px;
-            min-width: 220px;
-            pointer-events: auto;
-            transform: translateX(100%);
-        }
+      .loading-progress {
+        width: 200px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-bottom: 15px;
+      }
 
-        #measurement-panel.visible {
-            transform: translateX(0);
-            opacity: 1;
-        }
+      .loading-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #ffffff, #4facfe);
+        width: 0%;
+        transition: width 0.3s ease;
+      }
 
-        /* Round toggle buttons */
-        .ui-toggle,
-        .measurement-toggle {
-            position: absolute;
-            top: 20px;
-            width: 40px;
-            height: 40px;
-            background: var(--white-90);
-            border: none;
-            border-radius: 50%;
-            color: #000;
-            font-size: 18px;
-            cursor: pointer;
-            z-index: 101;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: var(--shadow-medium);
-            transition: all 0.3s ease;
-            font-weight: bold;
-        }
+      .loading-text {
+        font-size: 16px;
+        color: var(--white-90);
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
 
-        .ui-toggle {
-            left: 20px;
-        }
+      .loading-subtext {
+        font-size: 12px;
+        color: var(--white-70);
+        text-align: center;
+        max-width: 300px;
+        line-height: 1.4;
+      }
 
-        .measurement-toggle {
-            right: 20px;
-        }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
 
-        .ui-toggle:hover,
-        .measurement-toggle:hover {
-            transform: scale(1.1);
-            background: #fff;
-        }
+      /* Panels (hidden by default; toggle via .visible) */
+      #ui-container,
+      #measurement-panel {
+        position: absolute;
+        background: var(--panel-bg);
+        padding: 15px;
+        border-radius: 15px;
+        font-size: 13px;
+        z-index: 100;
+        border: 1px solid var(--panel-border);
+        box-shadow: var(--shadow-strong);
+        backdrop-filter: blur(10px);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        opacity: 0;
+      }
 
-        .ui-section {
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--panel-border);
-        }
+      #ui-container {
+        top: 20px;
+        left: 20px;
+        max-width: 280px;
+        pointer-events: none;
+        transform: translateX(-100%);
+      }
+      #ui-container.visible {
+        transform: translateX(0);
+        opacity: 1;
+      }
 
-        .ui-section:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-        }
+      #measurement-panel {
+        top: 20px;
+        right: 20px;
+        min-width: 220px;
+        pointer-events: auto;
+        transform: translateX(100%);
+      }
+      #measurement-panel.visible {
+        transform: translateX(0);
+        opacity: 1;
+      }
 
-        .section-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
+      /* Round toggle buttons */
+      .ui-toggle,
+      .measurement-toggle {
+        position: absolute;
+        top: 20px;
+        width: 40px;
+        height: 40px;
+        background: var(--white-90);
+        border: none;
+        border-radius: 50%;
+        color: #000;
+        font-size: 18px;
+        cursor: pointer;
+        z-index: 101;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-medium);
+        transition: all 0.3s ease;
+        font-weight: bold;
+      }
+      .ui-toggle {
+        left: 20px;
+      }
+      .measurement-toggle {
+        right: 20px;
+      }
+      .ui-toggle:hover,
+      .measurement-toggle:hover {
+        transform: scale(1.1);
+        background: #fff;
+      }
 
-        .control-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-            padding: 4px 0;
-        }
+      .ui-section {
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--panel-border);
+      }
+      .ui-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
 
+      .section-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .control-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        padding: 4px 0;
+      }
+      .control-key {
+        background: var(--white-90);
+        color: #000;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 11px;
+        min-width: 70px;
+        text-align: center;
+        box-shadow: var(--shadow-soft);
+      }
+      .control-label {
+        font-size: 12px;
+        color: var(--white-90);
+        text-align: right;
+        flex: 1;
+        margin-left: 8px;
+      }
+
+      /* Visual control cards */
+      .control-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .control-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .control-icon {
+        width: 30px;
+        height: 30px;
+        background: var(--white-90);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #000;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      .control-card .control-key {
+        background: transparent;
+        color: #fff;
+        padding: 2px 4px;
+        font-size: 9px;
+        box-shadow: none;
+        min-width: auto;
+      }
+      .control-description {
+        font-size: 9px;
+        color: var(--white-70);
+        text-align: center;
+      }
+
+      /* Indicators */
+      #movement-indicator,
+      #rotation-indicator {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        display: none;
+        box-shadow: var(--shadow-medium);
+        z-index: 101;
+        border: 1px solid var(--panel-border);
+      }
+      #movement-indicator {
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #rotation-indicator {
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      /* Logo */
+      #vihouse-logo {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        z-index: 99;
+        pointer-events: none;
+      }
+      .logo-container {
+        width: 80px;
+        height: 80px;
+        background: #fff;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        padding: 12px;
+        overflow: hidden;
+      }
+      .logo-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      .powered-by {
+        font-size: 10px;
+        color: var(--white-90);
+        font-weight: 500;
+        margin-top: 2px;
+        text-align: center;
+      }
+
+      /* Mobile-specific styles */
+      @media (max-width: 768px) {
+        .ui-toggle, .measurement-toggle {
+          width: 50px;
+          height: 50px;
+          font-size: 22px;
+        }
+        
+        #ui-container, #measurement-panel {
+          padding: 20px;
+          font-size: 14px;
+          max-width: 90vw;
+        }
+        
         .control-key {
-            background: var(--white-90);
-            color: #000;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 11px;
-            min-width: 70px;
-            text-align: center;
-            box-shadow: var(--shadow-soft);
+          padding: 8px 12px;
+          font-size: 12px;
+          min-width: 85px;
         }
-
-        .control-label {
-            font-size: 12px;
-            color: var(--white-90);
-            text-align: right;
-            flex: 1;
-            margin-left: 8px;
-        }
-
-        /* Visual control cards */
-        .control-cards {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
+        
         .control-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 12px;
         }
-
+        
         .control-icon {
-            width: 30px;
-            height: 30px;
-            background: var(--white-90);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #000;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+          width: 35px;
+          height: 35px;
+          font-size: 16px;
         }
 
-        .control-card .control-key {
-            background: transparent;
-            color: #fff;
-            padding: 2px 4px;
-            font-size: 9px;
-            box-shadow: none;
-            min-width: auto;
-        }
-
-        .control-description {
-            font-size: 9px;
-            color: var(--white-70);
-            text-align: center;
-        }
-
-        /* Indicators */
-        #movement-indicator,
-        #rotation-indicator {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.9);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            display: none;
-            box-shadow: var(--shadow-medium);
-            z-index: 101;
-            border: 1px solid var(--panel-border);
-        }
-
-        #movement-indicator {
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
-        #rotation-indicator {
-            top: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
-        /* Logo */
         #vihouse-logo {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            z-index: 99;
-            pointer-events: none;
+          bottom: 150px;
         }
 
-        .logo-container {
-            width: 80px;
-            height: 80px;
-            background: #fff;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            padding: 12px;
-            overflow: hidden;
+        .loading-spinner {
+          width: 50px;
+          height: 50px;
         }
 
-        .logo-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
-            max-width: 100%;
-            max-height: 100%;
+        .loading-text {
+          font-size: 14px;
         }
 
-        .powered-by {
-            font-size: 10px;
-            color: var(--white-90);
-            font-weight: 500;
-            margin-top: 2px;
-            text-align: center;
+        .loading-subtext {
+          font-size: 11px;
+          max-width: 250px;
         }
+      }
+
+      /* Hide desktop-only instructions on mobile */
+      @media (max-width: 768px) {
+        .desktop-only { display: none; }
+      }
+      
+      /* Mobile instructions */
+      .mobile-instructions {
+        display: none;
+      }
+      
+      @media (max-width: 768px) {
+        .mobile-instructions { display: block; }
+      }
+
+      /* Virtual Joystick */
+      #joystick-container {
+        position: fixed;
+        bottom: 120px;
+        left: 30px;
+        width: 100px;
+        height: 100px;
+        z-index: 1000;
+        touch-action: none;
+        display: none;
+      }
+
+      #joystick-base {
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        position: relative;
+        backdrop-filter: blur(5px);
+      }
+
+      #joystick-handle {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transition: transform 0.1s;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      }
+
+      @media (max-width: 768px) {
+        #joystick-container {
+          display: block;
+        }
+      }
     </style>
-</head>
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <div class="loading-spinner"></div>
+      <div class="loading-progress">
+        <div class="loading-progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="loading-text" id="loading-text">Loading 3D Model...</div>
+      <div class="loading-subtext" id="loading-subtext">Preparing your property visualization experience</div>
+    </div>
 
-<body>
-    <button class="ui-toggle" id="ui-toggle" aria-label="Toggle controls" data-testid="toggle-controls">
-        ⚙️
+    <button
+      class="ui-toggle"
+      id="ui-toggle"
+      aria-label="Toggle controls"
+      data-testid="toggle-controls"
+    >
+      ⚙️
     </button>
-    <button class="measurement-toggle" id="measurement-toggle" aria-label="Toggle measurement panel"
-        data-testid="toggle-measurement">
-        📐
+    <button
+      class="measurement-toggle"
+      id="measurement-toggle"
+      aria-label="Toggle measurement panel"
+      data-testid="toggle-measurement"
+    >
+      📐
     </button>
 
     <div id="ui-container" aria-hidden="true" data-testid="controls-panel">
-        <div class="ui-section">
-            <div class="section-title">🎮 NAVIGATION CONTROLS</div>
-            <div class="control-item">
-                <div class="control-key">LEFT CLICK</div>
-                <div class="control-label">360° Camera Rotation</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">RIGHT CLICK</div>
-                <div class="control-label">Pan / Move Camera</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">MOUSE WHEEL</div>
-                <div class="control-label">Zoom In/Out</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">MIDDLE CLICK</div>
-                <div class="control-label">Quick Zoom</div>
-            </div>
+      <div class="ui-section">
+        <div class="section-title">🎮 NAVIGATION CONTROLS</div>
+        <div class="control-item desktop-only">
+          <div class="control-key">LEFT CLICK</div>
+          <div class="control-label">360° Camera Rotation</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">RIGHT CLICK</div>
+          <div class="control-label">Pan / Move Camera</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">MOUSE WHEEL</div>
+          <div class="control-label">Zoom In/Out</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">MIDDLE CLICK</div>
+          <div class="control-label">Quick Zoom</div>
         </div>
 
-        <div class="ui-section">
-            <div class="section-title"> MOVEMENT</div>
-            <div class="control-item">
-                <div class="control-key">W / ↑</div>
-                <div class="control-label">Move Forward</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">S / ↓</div>
-                <div class="control-label">Move Backward</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">A / ←</div>
-                <div class="control-label">Move Left</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">D / →</div>
-                <div class="control-label">Move Right</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">Q</div>
-                <div class="control-label">Move Up</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">E</div>
-                <div class="control-label">Move Down</div>
-            </div>
-            <div class="control-item">
-                <div class="control-key">SHIFT</div>
-                <div class="control-label">Turbo Speed</div>
-            </div>
+        <!-- Mobile Instructions -->
+        <div class="mobile-instructions">
+          <div class="control-item">
+            <div class="control-key">ONE FINGER</div>
+            <div class="control-label">Look Around</div>
+          </div>
+          <div class="control-item">
+            <div class="control-key">TWO FINGERS</div>
+            <div class="control-label">Zoom & Pan</div>
+          </div>
+          <div class="control-item">
+            <div class="control-key">JOYSTICK</div>
+            <div class="control-label">Move</div>
+          </div>
         </div>
+      </div>
 
-        <div class="ui-section">
-            <div class="section-title"> QUICK CONTROLS</div>
-            <div class="control-cards">
-                <div class="control-card">
-                    <div class="control-icon">👁️</div>
-                    <div class="control-key">LOOK</div>
-                    <div class="control-description">Left Click</div>
-                </div>
-                <div class="control-card">
-                    <div class="control-icon">🔄</div>
-                    <div class="control-key">PAN</div>
-                    <div class="control-description">Right Click</div>
-                </div>
-                <div class="control-card">
-                    <div class="control-icon">🏃</div>
-                    <div class="control-key">MOVE</div>
-                    <div class="control-description">WASD</div>
-                </div>
-                <div class="control-card">
-                    <div class="control-icon">⚡</div>
-                    <div class="control-key">TURBO</div>
-                    <div class="control-description">Shift</div>
-                </div>
-            </div>
+      <div class="ui-section">
+        <div class="section-title">🚀 MOVEMENT</div>
+        <div class="control-item">
+          <div class="control-key">W / ↑</div>
+          <div class="control-label">Move Forward</div>
         </div>
+        <div class="control-item">
+          <div class="control-key">S / ↓</div>
+          <div class="control-label">Move Backward</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">A / ←</div>
+          <div class="control-label">Move Left</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">D / →</div>
+          <div class="control-label">Move Right</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">Q</div>
+          <div class="control-label">Move Up</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">E</div>
+          <div class="control-label">Move Down</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">SHIFT</div>
+          <div class="control-label">Turbo Speed</div>
+        </div>
+      </div>
+
+      <div class="ui-section">
+        <div class="section-title">🎯 QUICK CONTROLS</div>
+        <div class="control-cards">
+          <div class="control-card">
+            <div class="control-icon">👁️</div>
+            <div class="control-key">LOOK</div>
+            <div class="control-description desktop-only">Left Click</div>
+            <div class="control-description mobile-instructions">One Finger</div>
+          </div>
+          <div class="control-card">
+            <div class="control-icon">🔄</div>
+            <div class="control-key">PAN</div>
+            <div class="control-description desktop-only">Right Click</div>
+            <div class="control-description mobile-instructions">Two Fingers</div>
+          </div>
+          <div class="control-card">
+            <div class="control-icon">🏃</div>
+            <div class="control-key">MOVE</div>
+            <div class="control-description desktop-only">WASD</div>
+            <div class="control-description mobile-instructions">Joystick</div>
+          </div>
+          <div class="control-card desktop-only">
+            <div class="control-icon">⚡</div>
+            <div class="control-key">TURBO</div>
+            <div class="control-description">Shift</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div id="measurement-panel" aria-hidden="true" data-testid="measurement-panel">
-        <div class="section-title">📐 MEASUREMENT TOOL</div>
-        <div class="measurement-controls">
-            <button class="measure-btn" id="start-measure" data-testid="start-measure">
-                Start Measure
-            </button>
-            <button class="measure-btn" id="clear-measure" data-testid="clear-measure" disabled>
-                Clear
-            </button>
+    <div
+      id="measurement-panel"
+      aria-hidden="true"
+      data-testid="measurement-panel"
+    >
+      <div class="section-title">📐 MEASUREMENT TOOL</div>
+      <div class="measurement-controls">
+        <button
+          class="measure-btn"
+          id="start-measure"
+          data-testid="start-measure"
+        >
+          Start Measure
+        </button>
+        <button
+          class="measure-btn"
+          id="clear-measure"
+          data-testid="clear-measure"
+          disabled
+        >
+          Clear
+        </button>
+      </div>
+      <div class="measurement-info">
+        <div
+          style="font-size: 11px; color: var(--white-70); margin-bottom: 6px"
+        >
+          Click two points in the 3D space to measure distance
         </div>
-        <div class="measurement-info">
-            <div style="font-size: 11px; color: var(--white-70); margin-bottom: 6px">
-                Click two points in the 3D space to measure distance
-            </div>
-            <div class="measurement-result" id="distance-result" data-testid="distance-result">
-                0.00 m
-            </div>
-            <div class="measurement-points" id="points-info" data-testid="points-info">
-                Click first point...
-            </div>
+        <div
+          class="measurement-result"
+          id="distance-result"
+          data-testid="distance-result"
+        >
+          0.00 m
         </div>
+        <div
+          class="measurement-points"
+          id="points-info"
+          data-testid="points-info"
+        >
+          Click first point...
+        </div>
+      </div>
+    </div>
+
+    <!-- Virtual Joystick for Mobile -->
+    <div id="joystick-container">
+      <div id="joystick-base">
+        <div id="joystick-handle"></div>
+      </div>
     </div>
 
     <div id="vihouse-logo" data-testid="vihouse-logo">
-        <div class="logo-container">
-            <img src="images/VIEHOUSE_logo.png" alt="VIEHOUSE Logo" />
-        </div>
-        <div class="powered-by">POWERED BY<br />VIEHOUSE</div>
+      <div class="logo-container">
+        <img src="images/VIEHOUSE_logo.png" alt="VIEHOUSE Logo" />
+      </div>
+      <div class="powered-by">POWERED BY<br />VIEHOUSE</div>
     </div>
 
     <div id="movement-indicator" data-testid="movement-indicator">
-        Moving...
+      Moving...
     </div>
     <div id="rotation-indicator" data-testid="rotation-indicator">
-        Rotating Camera...
+      Rotating Camera...
     </div>
 
     <script type="importmap">
@@ -424,388 +642,641 @@
     </script>
 
     <script type="module">
-        import * as THREE from "three";
-        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-        import { LCCRender } from "./sdk/lcc-0.4.0.js";
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { LCCRender } from "./sdk/lcc-0.4.0.js";
 
-        // Scene & renderer
-        const scene = new THREE.Scene();
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+      // Loading elements
+      const loadingScreen = document.getElementById("loading-screen");
+      const progressBar = document.getElementById("progress-bar");
+      const loadingText = document.getElementById("loading-text");
+      const loadingSubtext = document.getElementById("loading-subtext");
+
+      // Scene & renderer
+      const scene = new THREE.Scene();
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      
+      // Mobile performance optimization
+      if (window.innerWidth < 768) {
+        renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio));
+      } else {
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setClearColor(0x1a1a1a);
-        document.body.appendChild(renderer.domElement);
+      }
+      
+      renderer.setClearColor(0x1a1a1a);
+      document.body.appendChild(renderer.domElement);
 
-        // Camera
-        const camera = new THREE.PerspectiveCamera(
-            45,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
-        camera.up.set(0, 0, 1);
-        camera.position.set(9, 2, 2);
-        // Manual rotation state
-        const cameraRotation = { yaw: 0, pitch: 0 };
+      // Camera
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.up.set(0, 0, 1);
+      camera.position.set(9, 2, 2);
+      // Manual rotation state
+      const cameraRotation = { yaw: 0, pitch: 0 };
 
-        // OrbitControls for pan/zoom; rotation is manual
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableRotate = false;
-        controls.enableZoom = true;
-        controls.enablePan = true;
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.panSpeed = 1.5;
-        controls.zoomSpeed = 1.2;
-        controls.mouseButtons = {
-            LEFT: null,
-            MIDDLE: THREE.MOUSE.DOLLY,
-            RIGHT: THREE.MOUSE.PAN,
-        };
-        controls.update();
+      // OrbitControls for pan/zoom; rotation is manual
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableRotate = false;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.panSpeed = 1.5;
+      controls.zoomSpeed = 1.2;
+      controls.mouseButtons = {
+        LEFT: null,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      };
+      controls.update();
 
+      // Update loading text
+      function updateLoadingProgress(percent, message = null) {
+        const progress = Math.min(100, Math.max(0, percent));
+        progressBar.style.width = `${progress}%`;
+        
+        if (message) {
+          loadingText.textContent = message;
+        }
+        
+        // Update subtext based on progress
+        if (progress < 30) {
+          loadingSubtext.textContent = "Initializing 3D environment...";
+        } else if (progress < 60) {
+          loadingSubtext.textContent = "Loading model data...";
+        } else if (progress < 90) {
+          loadingSubtext.textContent = "Processing textures and materials...";
+        } else {
+          loadingSubtext.textContent = "Finalizing rendering setup...";
+        }
+      }
 
-        // ✅ use your Blob folder (PUBLIC, ends with '/')
-        const DATA_URL = "https://7cljve8li97skpij.public.blob.vercel-storage.com/PentHouse/meta.lcc";
+      // Hide loading screen
+      function hideLoadingScreen() {
+        setTimeout(() => {
+          loadingScreen.classList.add('hidden');
+          // Enable UI after loading
+          setTimeout(() => {
+            loadingScreen.style.display = 'none';
+          }, 500);
+        }, 500);
+      }
 
-        const lccObj = LCCRender.load(
-            {
-                camera,
-                scene,
-                dataPath: DATA_URL,           // <-- file, not folder
-                renderLib: THREE,
-                canvas: renderer.domElement,
-                renderer,
-            },
-            (mesh) => console.log("LCC object Loaded:", mesh),
-            (percent) => console.log("LCC loading:", (percent * 100).toFixed(1) + "%")
-        );
+      // Load LCC object with loading progress
+      updateLoadingProgress(10, "Initializing 3D Renderer...");
+      
+      const lccObj = LCCRender.load(
+        {
+          camera,
+          scene,
+          dataPath: "http://localhost:5501/data/PentHouse",
+          renderLib: THREE,
+          canvas: renderer.domElement,
+          renderer,
+        },
+        (mesh) => {
+          console.log("LCC object Loaded:", mesh);
+          updateLoadingProgress(100, "Model Loaded!");
+          setTimeout(() => {
+            hideLoadingScreen();
+          }, 1000);
+        },
+        (percent) => {
+          const loadingPercent = 10 + (percent * 85); // Reserve 10% for init, 85% for loading
+          updateLoadingProgress(loadingPercent, `Loading Model: ${Math.round(percent * 100)}%`);
+          console.log("LCC loading:", percent * 100 + "%");
+        }
+      );
+      
+      window.obj = lccObj;
+      
+      // Apply LCC settings after a brief delay to ensure initialization
+      setTimeout(() => {
+        if (lccObj) {
+          // IMPOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORTANT
+          lccObj.useShcoef(true); //enhances the shadow and light
+          // lccObj.getCurrentConfig()
+          // lccObj.setMaxDistance(50) // in meters for sure
+          
+          // Mobile performance optimization
+          if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            lccObj.setMaxSplats(1e6); // Reduce from 5M to 1M for mobile
+            updateLoadingProgress(95, "Optimizing for mobile...");
+          } else {
+            lccObj.setMaxSplats(5e6); // Original value for desktop
+          }
+        }
+      }, 100);
 
+      // UI cache
+      const uiToggle = document.getElementById("ui-toggle");
+      const uiContainer = document.getElementById("ui-container");
+      const measurementToggle = document.getElementById("measurement-toggle");
+      const measurementPanel = document.getElementById("measurement-panel");
+      const movementIndicator = document.getElementById("movement-indicator");
+      const rotationIndicator = document.getElementById("rotation-indicator");
+      const startMeasureBtn = document.getElementById("start-measure");
+      const clearMeasureBtn = document.getElementById("clear-measure");
+      const distanceResultEl = document.getElementById("distance-result");
+      const pointsInfoEl = document.getElementById("points-info");
 
-        // // Load LCC object (kept as-is)
-        // const lccObj = LCCRender.load(
-        //     {
-        //         camera,
-        //         scene,
-        //         dataPath: "http://localhost:5501/data/PentHouse/meta.lcc",
-        //         renderLib: THREE,
-        //         canvas: renderer.domElement,
-        //         renderer,
-        //     },
-        //     (mesh) => console.log("LCC object Loaded:", mesh),
-        //     (percent) => console.log("LCC loading:", percent * 100 + "%")
-        // );
+      // State
+      let uiVisible = false;
+      let measurementVisible = false;
+      const baseSpeed = 0.1;
+      const runSpeed = 0.25;
+      const keysPressed = {};
+      let isRotating = false;
 
+      // Reusable objects to reduce allocations
+      const vForward = new THREE.Vector3();
+      const vRight = new THREE.Vector3();
+      const vMove = new THREE.Vector3();
+      const mouseNDC = new THREE.Vector2();
+      const raycaster = new THREE.Raycaster();
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+      const intersectionPoint = new THREE.Vector3();
+      const tmpRay = new THREE.Ray();
 
+      // Measurement
+      let isMeasuring = false;
+      let measurementPoints = [];
+      let measurementLine = null;
+      let measurementSpheres = [];
+      const measurementMaterial = new THREE.LineBasicMaterial({
+        color: 0xff0000,
+        linewidth: 2,
+      });
+      const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+      const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
 
-        window.obj = lccObj;
-        // IMPOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORTANT
-        lccObj.useShcoef(true); //enhances the shadow and light
-        // lccObj.getCurrentConfig()
-        // lccObj.setMaxDistance(50) // in meters for sure
-        lccObj.setMaxSplats(3e6); // شوف المتعة بس بدها جهاز
+      // Mobile touch state
+      const touchState = {
+        isTouching: false,
+        touchStart: { x: 0, y: 0 },
+        prevTouch: { x: 0, y: 0 },
+        twoFinger: false,
+        initialDistance: 0,
+        initialFov: camera.fov
+      };
 
-        // UI cache
-        const uiToggle = document.getElementById("ui-toggle");
-        const uiContainer = document.getElementById("ui-container");
-        const measurementToggle = document.getElementById("measurement-toggle");
-        const measurementPanel = document.getElementById("measurement-panel");
-        const movementIndicator = document.getElementById("movement-indicator");
-        const rotationIndicator = document.getElementById("rotation-indicator");
-        const startMeasureBtn = document.getElementById("start-measure");
-        const clearMeasureBtn = document.getElementById("clear-measure");
-        const distanceResultEl = document.getElementById("distance-result");
-        const pointsInfoEl = document.getElementById("points-info");
+      // Virtual joystick state
+      const joystickState = { x: 0, y: 0, active: false };
 
-        // State
-        let uiVisible = false;
-        let measurementVisible = false;
-        const baseSpeed = 0.1;
-        const runSpeed = 0.25;
-        const keysPressed = {};
-        let isRotating = false;
+      // Initialize mobile controls
+      function initMobileSupport() {
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+          setupTouchControls();
+          setupVirtualJoystick();
+        }
+      }
 
-        // Reusable objects to reduce allocations
-        const vForward = new THREE.Vector3();
-        const vRight = new THREE.Vector3();
-        const vMove = new THREE.Vector3();
-        const mouseNDC = new THREE.Vector2();
-        const raycaster = new THREE.Raycaster();
-        const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-        const intersectionPoint = new THREE.Vector3();
-        const tmpRay = new THREE.Ray();
+      // Touch gesture controls
+      function setupTouchControls() {
+        const canvas = renderer.domElement;
+        
+        canvas.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          if (isMeasuring) {
+            // Handle measurement touch
+            handleMeasurementTouch(e);
+            return;
+          }
 
-        // Measurement
-        let isMeasuring = false;
-        let measurementPoints = [];
-        let measurementLine = null;
-        let measurementSpheres = [];
-        const measurementMaterial = new THREE.LineBasicMaterial({
-            color: 0xff0000,
-            linewidth: 2,
+          if (e.touches.length === 1) {
+            // Single touch - rotation
+            touchState.isTouching = true;
+            touchState.twoFinger = false;
+            touchState.touchStart.x = e.touches[0].clientX;
+            touchState.touchStart.y = e.touches[0].clientY;
+            touchState.prevTouch.x = e.touches[0].clientX;
+            touchState.prevTouch.y = e.touches[0].clientY;
+            isRotating = true;
+            rotationIndicator.style.display = "block";
+          } else if (e.touches.length === 2) {
+            // Two fingers - pan/zoom
+            touchState.isTouching = true;
+            touchState.twoFinger = true;
+            touchState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
+            touchState.initialFov = camera.fov;
+          }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!touchState.isTouching) return;
+
+          if (e.touches.length === 1 && !touchState.twoFinger) {
+            // Rotation
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchState.prevTouch.x;
+            const deltaY = touch.clientY - touchState.prevTouch.y;
+            
+            updateCameraRotation(deltaX * 0.5, deltaY * 0.5);
+            
+            touchState.prevTouch.x = touch.clientX;
+            touchState.prevTouch.y = touch.clientY;
+          } else if (e.touches.length === 2) {
+            // Pinch to zoom & two-finger pan
+            handleMultiTouch(e);
+          }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+          touchState.isTouching = false;
+          touchState.twoFinger = false;
+          isRotating = false;
+          rotationIndicator.style.display = "none";
         });
-        const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-        const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      }
 
-        // UI toggles
+      function getTouchDistance(touch1, touch2) {
+        const dx = touch1.clientX - touch2.clientX;
+        const dy = touch1.clientY - touch2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function handleMultiTouch(e) {
+        // Pinch zoom
+        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        const zoomDelta = (currentDistance - touchState.initialDistance) * 0.01;
+        
+        camera.fov = touchState.initialFov - zoomDelta * 10;
+        camera.fov = Math.max(10, Math.min(75, camera.fov));
+        camera.updateProjectionMatrix();
+        
+        touchState.initialDistance = currentDistance;
+      }
+
+      function handleMeasurementTouch(e) {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          mouseNDC.x = (touch.clientX / window.innerWidth) * 2 - 1;
+          mouseNDC.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouseNDC, camera);
+          tmpRay.origin.copy(camera.position);
+          tmpRay.direction.copy(raycaster.ray.direction);
+
+          if (tmpRay.intersectPlane(groundPlane, intersectionPoint)) {
+            addMeasurementPoint(intersectionPoint);
+          }
+        }
+      }
+
+      // Virtual joystick
+      function setupVirtualJoystick() {
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickHandle = document.getElementById('joystick-handle');
+        const maxMovement = 30;
+        
+        joystickContainer.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          joystickState.active = true;
+          updateJoystickPosition(e.touches[0], joystickContainer, joystickHandle, maxMovement);
+        }, { passive: false });
+        
+        joystickContainer.addEventListener('touchmove', (e) => {
+          if (!joystickState.active) return;
+          e.preventDefault();
+          updateJoystickPosition(e.touches[0], joystickContainer, joystickHandle, maxMovement);
+        }, { passive: false });
+        
+        joystickContainer.addEventListener('touchend', () => {
+          joystickState.active = false;
+          joystickState.x = 0;
+          joystickState.y = 0;
+          joystickHandle.style.transform = 'translate(-50%, -50%)';
+        });
+      }
+
+      function updateJoystickPosition(touch, container, handle, maxMovement) {
+        const rect = container.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        let deltaX = touch.clientX - centerX;
+        let deltaY = touch.clientY - centerY;
+        
+        // Constrain to circular area
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (distance > maxMovement) {
+          deltaX = (deltaX / distance) * maxMovement;
+          deltaY = (deltaY / distance) * maxMovement;
+        }
+        
+        joystickState.x = deltaX / maxMovement; // Normalize to -1 to 1
+        joystickState.y = -deltaY / maxMovement; // Invert Y axis
+        
+        handle.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+        
+        // Show movement indicator
+        if (joystickState.active && (joystickState.x !== 0 || joystickState.y !== 0)) {
+          movementIndicator.style.display = "block";
+          movementIndicator.textContent = "Moving...";
+        } else {
+          movementIndicator.style.display = "none";
+        }
+      }
+
+      // Update movement to include joystick
+      function updateMovement() {
+        const speed = keysPressed["shift"] ? runSpeed : baseSpeed;
+        vMove.set(0, 0, 0);
+
+        // Keyboard movement
+        camera.getWorldDirection(vForward);
+        vForward.z = 0;
+        vForward.normalize();
+
+        vRight.set(-vForward.y, vForward.x, 0);
+
+        if (keysPressed["w"] || keysPressed["arrowup"]) vMove.add(vForward);
+        if (keysPressed["s"] || keysPressed["arrowdown"]) vMove.sub(vForward);
+        if (keysPressed["a"] || keysPressed["arrowright"]) vMove.add(vRight);
+        if (keysPressed["d"] || keysPressed["arrowleft"]) vMove.sub(vRight);
+        if (keysPressed["q"]) vMove.z += 1;
+        if (keysPressed["e"]) vMove.z -= 1;
+
+        // Joystick movement (mobile)
+        if (joystickState.active) {
+          vMove.x += joystickState.x * speed;
+          vMove.y += joystickState.y * speed;
+        }
+
+        if (vMove.lengthSq() > 0) {
+          vMove.normalize().multiplyScalar(speed);
+          camera.position.add(vMove);
+          controls.target.add(vMove);
+        }
+      }
+
+      // UI toggles (only enable after loading)
+      function enableUI() {
         uiToggle.addEventListener("click", () => {
-            uiVisible = !uiVisible;
-            uiContainer.classList.toggle("visible", uiVisible);
-            uiContainer.setAttribute("aria-hidden", String(!uiVisible));
-            uiToggle.textContent = uiVisible ? "✕" : "⚙️";
+          uiVisible = !uiVisible;
+          uiContainer.classList.toggle("visible", uiVisible);
+          uiContainer.setAttribute("aria-hidden", String(!uiVisible));
+          uiToggle.textContent = uiVisible ? "✕" : "⚙️";
         });
 
         measurementToggle.addEventListener("click", () => {
-            measurementVisible = !measurementVisible;
-            measurementPanel.classList.toggle("visible", measurementVisible);
-            measurementPanel.setAttribute(
-                "aria-hidden",
-                String(!measurementVisible)
-            );
-            measurementToggle.textContent = measurementVisible ? "✕" : "📐";
+          measurementVisible = !measurementVisible;
+          measurementPanel.classList.toggle("visible", measurementVisible);
+          measurementPanel.setAttribute(
+            "aria-hidden",
+            String(!measurementVisible)
+          );
+          measurementToggle.textContent = measurementVisible ? "✕" : "📐";
         });
+      }
 
-        // Measurement controls
-        function startMeasurement() {
-            isMeasuring = true;
-            measurementPoints = [];
-            clearMeasurementVisuals();
-            startMeasureBtn.textContent = "Click First Point";
-            pointsInfoEl.textContent = "Click first point in 3D space...";
-            clearMeasureBtn.disabled = false;
+      // Measurement controls
+      function startMeasurement() {
+        isMeasuring = true;
+        measurementPoints = [];
+        clearMeasurementVisuals();
+        startMeasureBtn.textContent = "Click First Point";
+        pointsInfoEl.textContent = "Click first point in 3D space...";
+        clearMeasureBtn.disabled = false;
+      }
+
+      function clearMeasurement() {
+        isMeasuring = false;
+        measurementPoints = [];
+        clearMeasurementVisuals();
+        startMeasureBtn.textContent = "Start Measure";
+        pointsInfoEl.textContent = "Click first point...";
+        distanceResultEl.textContent = "0.00 m";
+        clearMeasureBtn.disabled = true;
+      }
+
+      function clearMeasurementVisuals() {
+        if (measurementLine) {
+          scene.remove(measurementLine);
+          measurementLine.geometry.dispose();
+          measurementLine = null;
         }
-
-        function clearMeasurement() {
-            isMeasuring = false;
-            measurementPoints = [];
-            clearMeasurementVisuals();
-            startMeasureBtn.textContent = "Start Measure";
-            pointsInfoEl.textContent = "Click first point...";
-            distanceResultEl.textContent = "0.00 m";
-            clearMeasureBtn.disabled = true;
+        for (const sphere of measurementSpheres) {
+          scene.remove(sphere);
         }
+        measurementSpheres = [];
+      }
 
-        function clearMeasurementVisuals() {
-            if (measurementLine) {
-                scene.remove(measurementLine);
-                measurementLine.geometry.dispose();
-                measurementLine = null;
-            }
-            for (const sphere of measurementSpheres) {
-                scene.remove(sphere);
-            }
-            measurementSpheres = [];
+      function addMeasurementPoint(point) {
+        measurementPoints.push(point.clone());
+
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.copy(point);
+        scene.add(sphere);
+        measurementSpheres.push(sphere);
+
+        if (measurementPoints.length === 1) {
+          startMeasureBtn.textContent = "Click Second Point";
+          pointsInfoEl.textContent = "First point set. Click second point...";
+        } else if (measurementPoints.length === 2) {
+          calculateDistance();
+          startMeasureBtn.textContent = "New Measure";
+          pointsInfoEl.textContent =
+            'Measurement complete. Click "New Measure" to start over.';
         }
+      }
 
-        function addMeasurementPoint(point) {
-            measurementPoints.push(point.clone());
+      function calculateDistance() {
+        if (measurementPoints.length !== 2) return;
+        const distance = measurementPoints[0].distanceTo(measurementPoints[1]);
+        distanceResultEl.textContent = `${distance.toFixed(2)} m`;
 
-            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-            sphere.position.copy(point);
-            scene.add(sphere);
-            measurementSpheres.push(sphere);
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(
+          measurementPoints
+        );
+        measurementLine = new THREE.Line(lineGeometry, measurementMaterial);
+        scene.add(measurementLine);
+      }
 
-            if (measurementPoints.length === 1) {
-                startMeasureBtn.textContent = "Click Second Point";
-                pointsInfoEl.textContent = "First point set. Click second point...";
-            } else if (measurementPoints.length === 2) {
-                calculateDistance();
-                startMeasureBtn.textContent = "New Measure";
-                pointsInfoEl.textContent =
-                    'Measurement complete. Click "New Measure" to start over.';
-            }
-        }
-
-        function calculateDistance() {
-            if (measurementPoints.length !== 2) return;
-            const distance = measurementPoints[0].distanceTo(measurementPoints[1]);
-            distanceResultEl.textContent = `${distance.toFixed(2)} m`;
-
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints(
-                measurementPoints
-            );
-            measurementLine = new THREE.Line(lineGeometry, measurementMaterial);
-            scene.add(measurementLine);
-        }
-
+      // Enable measurement controls after loading
+      function enableMeasurementControls() {
         startMeasureBtn.addEventListener("click", startMeasurement);
         clearMeasureBtn.addEventListener("click", clearMeasurement);
+      }
 
-        // Mouse interaction
-        renderer.domElement.addEventListener("contextmenu", (e) =>
-            e.preventDefault()
+      // Mouse interaction (desktop)
+      renderer.domElement.addEventListener("contextmenu", (e) =>
+        e.preventDefault()
+      );
+
+      renderer.domElement.addEventListener("mousedown", (event) => {
+        if (event.button !== 0) return;
+
+        if (isMeasuring) {
+          mouseNDC.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouseNDC.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouseNDC, camera);
+          tmpRay.origin.copy(camera.position);
+          tmpRay.direction.copy(raycaster.ray.direction);
+
+          if (tmpRay.intersectPlane(groundPlane, intersectionPoint)) {
+            addMeasurementPoint(intersectionPoint);
+          }
+        } else {
+          isRotating = true;
+          renderer.domElement.requestPointerLock();
+          rotationIndicator.style.display = "block";
+        }
+        event.preventDefault();
+      });
+
+      renderer.domElement.addEventListener("mouseup", (event) => {
+        if (event.button !== 0) return;
+        isRotating = false;
+        document.exitPointerLock();
+        rotationIndicator.style.display = "none";
+      });
+
+      renderer.domElement.addEventListener("mousemove", (event) => {
+        if (!isRotating || isMeasuring) return;
+        const dx = event.movementX ?? 0;
+        const dy = event.movementY ?? 0;
+        if (dx !== 0 || dy !== 0) updateCameraRotation(dx, dy);
+      });
+
+      // Keyboard
+      window.addEventListener("keydown", (e) => {
+        const key = e.key.toLowerCase();
+        keysPressed[key] = true;
+
+        if (key === "r") {
+          resetCamera();
+          e.preventDefault();
+        } else if (key === "m") {
+          isMeasuring ? clearMeasurement() : startMeasurement();
+          e.preventDefault();
+        }
+
+        if (
+          [
+            "w",
+            "a",
+            "s",
+            "d",
+            "q",
+            "e",
+            "arrowup",
+            "arrowdown",
+            "arrowleft",
+            "arrowright",
+          ].includes(key)
+        ) {
+          movementIndicator.style.display = "block";
+          movementIndicator.textContent = keysPressed["shift"]
+            ? "TURBO MODE - Running..."
+            : "Moving...";
+        }
+      });
+
+      window.addEventListener("keyup", (e) => {
+        const key = e.key.toLowerCase();
+        keysPressed[key] = false;
+
+        if (
+          [
+            "w",
+            "a",
+            "s",
+            "d",
+            "q",
+            "e",
+            "arrowup",
+            "arrowdown",
+            "arrowleft",
+            "arrowright",
+          ].includes(key)
+        ) {
+          movementIndicator.style.display = "none";
+        }
+      });
+
+      // Rotation helpers
+      function updateCameraRotation(deltaX, deltaY) {
+        const sensitivity = 0.002;
+        cameraRotation.yaw -= deltaX * sensitivity;
+        cameraRotation.pitch -= deltaY * sensitivity;
+
+        const qYaw = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 0, 1),
+          cameraRotation.yaw
         );
+        const qPitch = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(1, 0, 0),
+          cameraRotation.pitch
+        );
+        const q = new THREE.Quaternion().multiplyQuaternions(qYaw, qPitch);
 
-        renderer.domElement.addEventListener("mousedown", (event) => {
-            if (event.button !== 0) return;
+        camera.setRotationFromQuaternion(q);
+        updateControlsTarget();
+      }
 
-            if (isMeasuring) {
-                mouseNDC.x = (event.clientX / window.innerWidth) * 2 - 1;
-                mouseNDC.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      function resetCamera() {
+        // IMPPPPPPPPPPORTANT to set the intial point.
+        camera.position.set(9, 2, 2);
+        cameraRotation.yaw = 0;
+        cameraRotation.pitch = 0;
+        camera.setRotationFromEuler(new THREE.Euler(0, 0, 0));
+        updateControlsTarget();
+      }
 
-                raycaster.setFromCamera(mouseNDC, camera);
-                tmpRay.origin.copy(camera.position);
-                tmpRay.direction.copy(raycaster.ray.direction);
+      function updateControlsTarget() {
+        camera.getWorldDirection(vForward);
+        controls.target.copy(camera.position).add(vForward.multiplyScalar(10));
+      }
 
-                if (tmpRay.intersectPlane(groundPlane, intersectionPoint)) {
-                    addMeasurementPoint(intersectionPoint);
-                }
-            } else {
-                isRotating = true;
-                renderer.domElement.requestPointerLock();
-                rotationIndicator.style.display = "block";
-            }
-            event.preventDefault();
+      // Main loop
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          updateMovement();
+          controls.update();
+          LCCRender.update();
+          renderer.render(scene, camera);
         });
+      }
 
-        renderer.domElement.addEventListener("mouseup", (event) => {
-            if (event.button !== 0) return;
-            isRotating = false;
-            document.exitPointerLock();
-            rotationIndicator.style.display = "none";
-        });
-
-        renderer.domElement.addEventListener("mousemove", (event) => {
-            if (!isRotating || isMeasuring) return;
-            const dx = event.movementX ?? 0;
-            const dy = event.movementY ?? 0;
-            if (dx !== 0 || dy !== 0) updateCameraRotation(dx, dy);
-        });
-
-        // Keyboard
-        window.addEventListener("keydown", (e) => {
-            const key = e.key.toLowerCase();
-            keysPressed[key] = true;
-
-            if (key === "r") {
-                resetCamera();
-                e.preventDefault();
-            } else if (key === "m") {
-                isMeasuring ? clearMeasurement() : startMeasurement();
-                e.preventDefault();
-            }
-
-            if (
-                [
-                    "w",
-                    "a",
-                    "s",
-                    "d",
-                    "q",
-                    "e",
-                    "arrowup",
-                    "arrowdown",
-                    "arrowleft",
-                    "arrowright",
-                ].includes(key)
-            ) {
-                movementIndicator.style.display = "block";
-                movementIndicator.textContent = keysPressed["shift"]
-                    ? "TURBO MODE - Running..."
-                    : "Moving...";
-            }
-        });
-
-        window.addEventListener("keyup", (e) => {
-            const key = e.key.toLowerCase();
-            keysPressed[key] = false;
-
-            if (
-                [
-                    "w",
-                    "a",
-                    "s",
-                    "d",
-                    "q",
-                    "e",
-                    "arrowup",
-                    "arrowdown",
-                    "arrowleft",
-                    "arrowright",
-                ].includes(key)
-            ) {
-                movementIndicator.style.display = "none";
-            }
-        });
-
-        // Rotation helpers
-        function updateCameraRotation(deltaX, deltaY) {
-            const sensitivity = 0.002;
-            cameraRotation.yaw -= deltaX * sensitivity;
-            cameraRotation.pitch -= deltaY * sensitivity;
-
-            const qYaw = new THREE.Quaternion().setFromAxisAngle(
-                new THREE.Vector3(0, 0, 1),
-                cameraRotation.yaw
-            );
-            const qPitch = new THREE.Quaternion().setFromAxisAngle(
-                new THREE.Vector3(1, 0, 0),
-                cameraRotation.pitch
-            );
-            const q = new THREE.Quaternion().multiplyQuaternions(qYaw, qPitch);
-
-            camera.setRotationFromQuaternion(q);
-            updateControlsTarget();
+      // Resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Re-optimize for mobile on resize
+        if (window.innerWidth < 768) {
+          renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio));
+        } else {
+          renderer.setPixelRatio(window.devicePixelRatio);
         }
+      });
 
-        function resetCamera() {
-            // IMPPPPPPPPPPORTANT to set the intial point.
-            camera.position.set(9, 2, 2);
-            cameraRotation.yaw = 0;
-            cameraRotation.pitch = 0;
-            camera.setRotationFromEuler(new THREE.Euler(0, 0, 0));
-            updateControlsTarget();
+      // Prevent browser gestures on mobile
+      document.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 1) {
+          e.preventDefault();
         }
+      }, { passive: false });
 
-        function updateControlsTarget() {
-            camera.getWorldDirection(vForward);
-            controls.target.copy(camera.position).add(vForward.multiplyScalar(10));
-        }
+      // Initialize mobile support and enable UI after loading
+      setTimeout(() => {
+        initMobileSupport();
+        enableUI();
+        enableMeasurementControls();
+      }, 1500);
 
-        // Movement update (WASD + arrows + QE)
-        function updateMovement() {
-            const speed = keysPressed["shift"] ? runSpeed : baseSpeed;
-
-            camera.getWorldDirection(vForward);
-            vForward.z = 0;
-            vForward.normalize();
-
-            vRight.set(-vForward.y, vForward.x, 0);
-            vMove.set(0, 0, 0);
-
-            if (keysPressed["w"] || keysPressed["arrowup"]) vMove.add(vForward);
-            if (keysPressed["s"] || keysPressed["arrowdown"]) vMove.sub(vForward);
-            if (keysPressed["a"] || keysPressed["arrowright"]) vMove.add(vRight);
-            if (keysPressed["d"] || keysPressed["arrowleft"]) vMove.sub(vRight);
-            if (keysPressed["q"]) vMove.z += 1;
-            if (keysPressed["e"]) vMove.z -= 1;
-
-            if (vMove.lengthSq() > 0) {
-                vMove.normalize().multiplyScalar(speed);
-                camera.position.add(vMove);
-                controls.target.add(vMove);
-            }
-        }
-
-        // Main loop
-        function animate() {
-            renderer.setAnimationLoop(() => {
-                updateMovement();
-                controls.update();
-                LCCRender.update();
-                renderer.render(scene, camera);
-            });
-        }
-
-        // Resize
-        window.addEventListener("resize", () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        animate();
+      // Start animation
+      animate();
     </script>
-</body>
-
+  </body>
 </html>
