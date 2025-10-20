@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Respect mobile safe areas, prevent viewport zoom jump -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>VIEHOUSE - 3D Property Viewer</title>
+
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel-bg: rgba(16, 18, 24, 0.78);
+        --panel-border: rgba(255, 255, 255, 0.12);
+        --fg: #eef2f8;
+        --muted: #b9c2d0;
+        --accent: #6ea8fe;
+        --accent-2: #42e6a4;
+        --danger: #ff6b6b;
+        --shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.45);
+        --shadow-med: 0 6px 18px rgba(0, 0, 0, 0.35);
+        --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.25);
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --radius-sm: 10px;
+        --glass-blur: 10px;
+        --safe-b: env(safe-area-inset-bottom, 0px);
+        --safe-t: env(safe-area-inset-top, 0px);
+        --safe-l: env(safe-area-inset-left, 0px);
+        --safe-r: env(safe-area-inset-right, 0px);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Inter, Arial, "Noto Sans", "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(
+          1200px 800px at 10% -10%,
+          #1b2232 0%,
+          #0f1115 60%
+        );
+        color: var(--fg);
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        touch-action: none;
+      }
+
+      /* ===== Loading ===== */
+      #loading-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #0f1115 0%, #0f1115cc 100%);
+        z-index: 1000;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+      }
+      #loading-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .loading-spinner {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.18);
+        border-top-color: #fff;
+        animation: spin 1s linear infinite;
+        box-shadow: var(--shadow-soft);
+      }
+      .loading-progress {
+        width: min(280px, 70vw);
+        height: 6px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+      .loading-progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #8ab4ff, #42e6a4);
+        transition: width 0.25s ease;
+      }
+      .loading-text {
+        font-weight: 600;
+        letter-spacing: 0.2px;
+      }
+      .loading-subtext {
+        color: var(--muted);
+        font-size: 0.9rem;
+        text-align: center;
+        max-width: 36ch;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ===== Panels & Toggles ===== */
+      .hud-panel {
+        position: absolute;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-strong);
+        backdrop-filter: blur(var(--glass-blur));
+        -webkit-backdrop-filter: blur(var(--glass-blur));
+        padding: 16px;
+        font-size: 0.92rem;
+        opacity: 0;
+        transform: translateY(-8px);
+        pointer-events: none;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        max-width: min(92vw, 320px);
+      }
+      .hud-panel.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      #ui-container {
+        top: calc(16px + var(--safe-t));
+        left: calc(16px + var(--safe-l));
+      }
+      #measurement-panel {
+        top: calc(16px + var(--safe-t));
+        right: calc(16px + var(--safe-r));
+        min-width: 260px;
+      }
+
+      .round-toggle {
+        position: absolute;
+        top: calc(16px + var(--safe-t));
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        border: 1px solid var(--panel-border);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.96),
+          rgba(255, 255, 255, 0.88)
+        );
+        color: #0f1115;
+        font-weight: 700;
+        font-size: 18px;
+        box-shadow: var(--shadow-med);
+        cursor: pointer;
+        z-index: 101;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .round-toggle:active {
+        transform: scale(0.97);
+      }
+      .round-toggle:hover {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+      }
+      #ui-toggle {
+        left: calc(16px + var(--safe-l));
+      }
+      #measurement-toggle {
+        right: calc(16px + var(--safe-r));
+      }
+
+      .section-title {
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .ui-section {
+        padding: 12px 0;
+        border-bottom: 1px dashed var(--panel-border);
+      }
+      .ui-section:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .control-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 0;
+      }
+      .control-key {
+        background: rgba(255, 255, 255, 0.95);
+        color: #0f1115;
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 6px 10px;
+        border-radius: 10px;
+        min-width: 72px;
+        text-align: center;
+        box-shadow: var(--shadow-soft);
+      }
+      .control-label {
+        color: var(--fg);
+        opacity: 0.92;
+        font-size: 0.9rem;
+      }
+
+      .control-cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .control-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 10px;
+        border-radius: 12px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.08),
+          rgba(255, 255, 255, 0.06)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .control-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        color: #0f1115;
+        font-weight: 700;
+        box-shadow: var(--shadow-soft);
+      }
+      .control-card .control-key {
+        background: transparent;
+        color: var(--fg);
+        font-size: 0.7rem;
+        padding: 0;
+        box-shadow: none;
+        min-width: auto;
+      }
+      .control-description {
+        font-size: 0.72rem;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      /* ===== Indicators ===== */
+      #movement-indicator,
+      #rotation-indicator,
+      #compass {
+        position: absolute;
+        z-index: 102;
+        display: none;
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-weight: 700;
+        border: 1px solid var(--panel-border);
+        background: rgba(12, 14, 20, 0.88);
+        box-shadow: var(--shadow-med);
+      }
+      #movement-indicator {
+        bottom: calc(110px + var(--safe-b));
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #rotation-indicator {
+        top: calc(80px + var(--safe-t));
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      #compass {
+        top: calc(16px + var(--safe-t));
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #compass .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--accent-2);
+        box-shadow: 0 0 16px var(--accent-2);
+      }
+      #compass .heading {
+        letter-spacing: 0.6px;
+      }
+
+      /* ===== Measurement panel ===== */
+      .measure-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .measure-btn {
+        appearance: none;
+        border: none;
+        cursor: pointer;
+        font-weight: 700;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(180deg, #8ab4ff, #6ea8fe);
+        color: #0f1115;
+        box-shadow: var(--shadow-soft);
+        transition: transform 0.15s ease, box-shadow 0.15s ease,
+          opacity 0.15s ease;
+      }
+      .measure-btn.secondary {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.14),
+          rgba(255, 255, 255, 0.08)
+        );
+        color: var(--fg);
+        border: 1px solid var(--panel-border);
+      }
+      .measure-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .measure-info {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .measurement-result {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 800;
+        font-size: 1.05rem;
+        color: #fff;
+        margin-top: 8px;
+      }
+      .measure-stats {
+        margin-top: 8px;
+        display: grid;
+        gap: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      /* Floating distance label */
+      #measure-label {
+        position: absolute;
+        z-index: 101;
+        display: none;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-weight: 700;
+        border: 1px solid var(--panel-border);
+        color: #0f1115;
+        background: linear-gradient(180deg, #ffffff, #f2f6ff);
+        box-shadow: var(--shadow-med);
+        pointer-events: none;
+      }
+
+      /* ===== Logo ===== */
+      #vihouse-logo {
+        position: absolute;
+        right: calc(16px + var(--safe-r));
+        bottom: calc(16px + var(--safe-b));
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+        z-index: 99;
+        pointer-events: none;
+      }
+      .logo-container {
+        width: 82px;
+        height: 82px;
+        border-radius: 18px;
+        padding: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        background: #fff;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+      }
+      .logo-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .powered-by {
+        font-size: 0.7rem;
+        text-align: center;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      /* ===== Virtual Joystick ===== */
+      #joystick-container {
+        position: fixed;
+        left: calc(24px + var(--safe-l));
+        bottom: calc(140px + var(--safe-b));
+        width: 110px;
+        height: 110px;
+        z-index: 1000;
+        touch-action: none;
+        display: none;
+      }
+      #joystick-base {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(6px);
+        position: relative;
+      }
+      #joystick-handle {
+        position: absolute;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: var(--shadow-med);
+        transition: transform 0.08s linear;
+      }
+
+      /* ===== Responsive ===== */
+      @media (max-width: 900px) {
+        .round-toggle {
+          width: 50px;
+          height: 50px;
+          font-size: 22px;
+        }
+        .hud-panel {
+          max-width: 92vw;
+        }
+        #vihouse-logo {
+          bottom: calc(160px + var(--safe-b));
+        }
+        #joystick-container {
+          display: block;
+        }
+        .desktop-only {
+          display: none !important;
+        }
+        .mobile-only {
+          display: initial !important;
+        }
+      }
+      .mobile-only {
+        display: none;
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading -->
+    <div id="loading-screen" role="status" aria-live="polite">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <div class="loading-progress">
+        <div id="progress-bar" class="loading-progress-bar"></div>
+      </div>
+      <div id="loading-text" class="loading-text">
+        Initializing 3D Renderer…
+      </div>
+      <div id="loading-subtext" class="loading-subtext">
+        Preparing your property visualization experience
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <button
+      class="round-toggle"
+      id="ui-toggle"
+      aria-label="Toggle controls"
+      data-testid="toggle-controls"
+    >
+      ⚙️
+    </button>
+    <button
+      class="round-toggle"
+      id="measurement-toggle"
+      aria-label="Toggle measurement panel"
+      data-testid="toggle-measurement"
+    >
+      📐
+    </button>
+
+    <!-- Controls Panel -->
+    <aside
+      id="ui-container"
+      class="hud-panel"
+      aria-hidden="true"
+      data-testid="controls-panel"
+    >
+      <div class="ui-section">
+        <div class="section-title">🎮 NAVIGATION CONTROLS</div>
+        <div class="control-item desktop-only">
+          <div class="control-key">LEFT CLICK</div>
+          <div class="control-label">Look / Rotate</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">RIGHT CLICK</div>
+          <div class="control-label">Pan</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">SCROLL</div>
+          <div class="control-label">Zoom</div>
+        </div>
+        <div class="mobile-only control-item">
+          <div class="control-key">ONE FINGER</div>
+          <div class="control-label">Look Around</div>
+        </div>
+        <div class="mobile-only control-item">
+          <div class="control-key">TWO FINGERS</div>
+          <div class="control-label">Pan & Pinch</div>
+        </div>
+        <div class="mobile-only control-item">
+          <div class="control-key">JOYSTICK</div>
+          <div class="control-label">Move</div>
+        </div>
+      </div>
+
+      <div class="ui-section">
+        <div class="section-title">🚀 MOVEMENT</div>
+        <div class="control-item">
+          <div class="control-key">W / ↑</div>
+          <div class="control-label">Forward</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">S / ↓</div>
+          <div class="control-label">Backward</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">A / ←</div>
+          <div class="control-label">Strafe Left</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">D / →</div>
+          <div class="control-label">Strafe Right</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">Q</div>
+          <div class="control-label">Move Up</div>
+        </div>
+        <div class="control-item">
+          <div class="control-key">E</div>
+          <div class="control-label">Move Down</div>
+        </div>
+        <div class="control-item desktop-only">
+          <div class="control-key">SHIFT</div>
+          <div class="control-label">Turbo Speed</div>
+        </div>
+      </div>
+
+      <div class="ui-section">
+        <div class="section-title">🎯 QUICK CONTROLS</div>
+        <div class="control-cards">
+          <div class="control-card">
+            <div class="control-icon">👁️</div>
+            <div class="control-key">LOOK</div>
+            <div class="control-description desktop-only">Left Click</div>
+            <div class="control-description mobile-only">One Finger</div>
+          </div>
+          <div class="control-card">
+            <div class="control-icon">🔄</div>
+            <div class="control-key">PAN</div>
+            <div class="control-description desktop-only">Right Click</div>
+            <div class="control-description mobile-only">Two Fingers</div>
+          </div>
+          <div class="control-card">
+            <div class="control-icon">🏃</div>
+            <div class="control-key">MOVE</div>
+            <div class="control-description desktop-only">WASD</div>
+            <div class="control-description mobile-only">Joystick</div>
+          </div>
+          <div class="control-card desktop-only">
+            <div class="control-icon">⚡</div>
+            <div class="control-key">TURBO</div>
+            <div class="control-description">Shift</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Measurement Panel -->
+    <aside
+      id="measurement-panel"
+      class="hud-panel"
+      aria-hidden="true"
+      data-testid="measurement-panel"
+    >
+      <div class="section-title">📐 MEASUREMENT TOOL</div>
+      <div class="measure-row" style="margin-bottom: 8px">
+        <button
+          class="measure-btn"
+          id="start-measure"
+          data-testid="start-measure"
+        >
+          Start Measure
+        </button>
+        <button
+          class="measure-btn secondary"
+          id="clear-measure"
+          data-testid="clear-measure"
+          disabled
+        >
+          Clear
+        </button>
+        <button
+          class="measure-btn secondary"
+          id="toggle-units"
+          title="Toggle units"
+        >
+          m / ft
+        </button>
+        <button
+          class="measure-btn secondary"
+          id="copy-measure"
+          title="Copy result"
+          disabled
+        >
+          Copy
+        </button>
+      </div>
+      <div class="measure-info" id="measure-hint">
+        Click two points (or tap twice) to measure distance.
+      </div>
+      <div
+        class="measurement-result"
+        id="distance-result"
+        data-testid="distance-result"
+      >
+        0.00 m
+      </div>
+      <div class="measure-stats" id="measure-stats">
+        <div id="points-info" data-testid="points-info">
+          Ready. Click first point…
+        </div>
+        <div id="components-info" style="display: none"></div>
+        <div id="bearing-info" style="display: none"></div>
+      </div>
+    </aside>
+
+    <!-- Floating Distance Label -->
+    <div id="measure-label"></div>
+
+    <!-- HUD Indicators -->
+    <div id="compass" aria-hidden="true">
+      <span class="dot"></span
+      ><span class="heading" id="compass-text">000° • N</span>
+    </div>
+    <div id="movement-indicator" data-testid="movement-indicator">Moving…</div>
+    <div id="rotation-indicator" data-testid="rotation-indicator">
+      Rotating…
+    </div>
+
+    <!-- Mobile Joystick -->
+    <div id="joystick-container" aria-hidden="true">
+      <div id="joystick-base"><div id="joystick-handle"></div></div>
+    </div>
+
+    <!-- Branding -->
+    <div id="vihouse-logo" data-testid="vihouse-logo">
+      <div class="logo-container">
+        <img src="images/VIEHOUSE_logo.png" alt="VIEHOUSE Logo" />
+      </div>
+      <div class="powered-by">POWERED BY<br />VIEHOUSE</div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./lib/three/three.module.js",
+          "three/addons/": "./lib/three/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { LCCRender } from "./sdk/lcc-0.4.0.js";
+
+      /* ----------------------------
+       *   DOM: Loading
+       * -------------------------- */
+      const $ = (s) => document.querySelector(s);
+      const loadingScreen = $("#loading-screen");
+      const progressBar = $("#progress-bar");
+      const loadingText = $("#loading-text");
+      const loadingSub = $("#loading-subtext");
+
+      function updateLoadingProgress(percent, message = null) {
+        const p = Math.max(0, Math.min(100, percent));
+        progressBar.style.width = p + "%";
+        if (message) loadingText.textContent = message;
+        loadingSub.textContent =
+          p < 30
+            ? "Initializing 3D environment…"
+            : p < 60
+            ? "Loading model data…"
+            : p < 90
+            ? "Processing textures and materials…"
+            : "Finalizing rendering setup…";
+      }
+      function hideLoadingScreen() {
+        setTimeout(() => {
+          loadingScreen.classList.add("hidden");
+          setTimeout(() => {
+            loadingScreen.style.display = "none";
+          }, 450);
+        }, 450);
+      }
+
+      /* ----------------------------
+       *   THREE: Scene / Renderer
+       * -------------------------- */
+      const scene = new THREE.Scene();
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+      });
+      // Output color space (handle older three versions safely)
+      try {
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+      } catch {}
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (window.innerWidth < 768) {
+        renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio));
+      } else {
+        renderer.setPixelRatio(window.devicePixelRatio);
+      }
+      renderer.setClearColor(0x0f1115);
+      document.body.appendChild(renderer.domElement);
+
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.up.set(0, 0, 1);
+      camera.position.set(9, 2, 2);
+
+      // Rotation state (manual yaw/pitch)
+      const cameraRotation = { yaw: 0, pitch: 0 };
+
+      // Controls: allow pan/zoom; rotation handled manually (desktop)
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableRotate = false;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.panSpeed = 1.4;
+      controls.zoomSpeed = 1.2;
+      controls.mouseButtons = {
+        LEFT: null,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      };
+      controls.update();
+
+      /* ----------------------------
+       *   Load LCC
+       * -------------------------- */
+      updateLoadingProgress(10, "Initializing 3D Renderer…");
+
+      const lccObj = LCCRender.load(
+        {
+          camera,
+          scene,
+          dataPath: "http://localhost:5501/data/PentHouse",
+          renderLib: THREE,
+          canvas: renderer.domElement,
+          renderer,
+        },
+        (mesh) => {
+          updateLoadingProgress(100, "Model Loaded!");
+          setTimeout(hideLoadingScreen, 650);
+        },
+        (percent) => {
+          updateLoadingProgress(
+            10 + percent * 85,
+            `Loading Model: ${Math.round(percent * 100)}%`
+          );
+        }
+      );
+      window.obj = lccObj;
+
+      setTimeout(() => {
+        if (lccObj) {
+          lccObj.useShcoef(true);
+          if (
+            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+              navigator.userAgent
+            )
+          ) {
+            lccObj.useShcoef(false);
+            lccObj.setMaxSplats(1e6);
+            updateLoadingProgress(95, "Optimizing for mobile…");
+          } else {
+            lccObj.setMaxSplats(5e6);
+          }
+        }
+      }, 100);
+
+      /* ----------------------------
+       *   UI references
+       * -------------------------- */
+      const uiToggle = $("#ui-toggle");
+      const uiPanel = $("#ui-container");
+      const measToggle = $("#measurement-toggle");
+      const measPanel = $("#measurement-panel");
+      const compassEl = $("#compass");
+      const compassText = $("#compass-text");
+      const moveInd = $("#movement-indicator");
+      const rotInd = $("#rotation-indicator");
+      const startMeasureBtn = $("#start-measure");
+      const clearMeasureBtn = $("#clear-measure");
+      const toggleUnitsBtn = $("#toggle-units");
+      const copyMeasureBtn = $("#copy-measure");
+      const distanceResultEl = $("#distance-result");
+      const pointsInfoEl = $("#points-info");
+      const componentsInfoEl = $("#components-info");
+      const bearingInfoEl = $("#bearing-info");
+      const measureHint = $("#measure-hint");
+      const labelEl = $("#measure-label");
+
+      let uiVisible = false,
+        measVisible = false;
+
+      function enableUI() {
+        uiToggle.addEventListener("click", () => {
+          uiVisible = !uiVisible;
+          uiPanel.classList.toggle("visible", uiVisible);
+          uiPanel.setAttribute("aria-hidden", String(!uiVisible));
+          uiToggle.textContent = uiVisible ? "✕" : "⚙️";
+        });
+        measToggle.addEventListener("click", () => {
+          measVisible = !measVisible;
+          measPanel.classList.toggle("visible", measVisible);
+          measPanel.setAttribute("aria-hidden", String(!measVisible));
+          measToggle.textContent = measVisible ? "✕" : "📐";
+        });
+      }
+
+      /* ----------------------------
+       *   Movement state
+       * -------------------------- */
+      const baseSpeed = 0.1;
+      const runSpeed = 0.25;
+      const keys = Object.create(null);
+      let isRotating = false;
+
+      // Reusable vectors
+      const worldUp = new THREE.Vector3(0, 0, 1);
+      const vForward = new THREE.Vector3();
+      const vRight = new THREE.Vector3();
+      const vMove = new THREE.Vector3();
+
+      // Display movement direction as arrow + label
+      function showMoveIndicator(vec, turbo = false) {
+        if (vec.lengthSq() === 0) {
+          moveInd.style.display = "none";
+          return;
+        }
+        moveInd.style.display = "block";
+
+        // Determine one of 8 arrows from forward/right composition
+        const angle = Math.atan2(vec.y, vec.x); // in XY plane
+        const deg = ((angle * 180) / Math.PI + 360) % 360;
+        const arrow =
+          deg >= 337.5 || deg < 22.5
+            ? "→"
+            : deg < 67.5
+            ? "↗"
+            : deg < 112.5
+            ? "↑"
+            : deg < 157.5
+            ? "↖"
+            : deg < 202.5
+            ? "←"
+            : deg < 247.5
+            ? "↙"
+            : deg < 292.5
+            ? "↓"
+            : "↘";
+        const card = degToCardinal(deg);
+        moveInd.textContent = `${arrow} ${card}${turbo ? " • Turbo" : ""}`;
+      }
+
+      /* ----------------------------
+       *   Measurement state
+       * -------------------------- */
+      const mouseNDC = new THREE.Vector2();
+      const raycaster = new THREE.Raycaster();
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+      const tmpRay = new THREE.Ray();
+      const tmpV3 = new THREE.Vector3();
+
+      let isMeasuring = false;
+      let units = "m"; // "m" | "ft"
+      let points = [];
+      let spheres = [];
+      let line = null;
+      let previewLine = null;
+      let labelAnchorA = null;
+      let labelAnchorB = null;
+
+      const sphereGeom = new THREE.SphereGeometry(0.05, 16, 16);
+      const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff3355 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xff3355 });
+
+      /* ----------------------------
+       *   Mobile touch state
+       * -------------------------- */
+      const touchState = {
+        isTouching: false,
+        twoFinger: false,
+        prevX: 0,
+        prevY: 0,
+        startDist: 0,
+        startFov: camera.fov,
+        panRefDist: 8, // will be recalculated to target distance
+      };
+
+      /* ----------------------------
+       *   Joystick
+       * -------------------------- */
+      const joy = { x: 0, y: 0, active: false };
+      const joyContainer = $("#joystick-container");
+      const joyHandle = $("#joystick-handle");
+      const joyMax = 34;
+      const joyDead = 0.12; // dead zone (normalized)
+
+      function setupVirtualJoystick() {
+        function updateFromTouch(t) {
+          const rect = joyContainer.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          let dx = t.clientX - cx;
+          let dy = t.clientY - cy;
+
+          const dist = Math.hypot(dx, dy);
+          const clamp = Math.min(dist, joyMax);
+          const nx = (dx / dist || 0) * clamp;
+          const ny = (dy / dist || 0) * clamp;
+
+          joy.x = nx / joyMax;
+          joy.y = -(ny / joyMax); // invert Y so up is positive forward relative to camera
+
+          // dead zone
+          if (Math.hypot(joy.x, joy.y) < joyDead) {
+            joy.x = 0;
+            joy.y = 0;
+          }
+
+          joyHandle.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
+        }
+
+        joyContainer.addEventListener(
+          "touchstart",
+          (e) => {
+            e.preventDefault();
+            joy.active = true;
+            updateFromTouch(e.touches[0]);
+          },
+          { passive: false }
+        );
+
+        joyContainer.addEventListener(
+          "touchmove",
+          (e) => {
+            if (!joy.active) return;
+            e.preventDefault();
+            updateFromTouch(e.touches[0]);
+          },
+          { passive: false }
+        );
+
+        joyContainer.addEventListener("touchend", () => {
+          joy.active = false;
+          joy.x = 0;
+          joy.y = 0;
+          joyHandle.style.transform = "translate(-50%, -50%)";
+          moveInd.style.display = "none";
+        });
+      }
+
+      /* ----------------------------
+       *   Touch controls (look/pan/pinch)
+       * -------------------------- */
+      function setupTouchControls() {
+        const canvas = renderer.domElement;
+
+        canvas.addEventListener(
+          "touchstart",
+          (e) => {
+            if (isMeasuring) {
+              handleMeasureTouch(e);
+              return;
+            }
+            if (e.touches.length === 1) {
+              touchState.isTouching = true;
+              touchState.twoFinger = false;
+              touchState.prevX = e.touches[0].clientX;
+              touchState.prevY = e.touches[0].clientY;
+              isRotating = true;
+              rotInd.style.display = "block";
+            } else if (e.touches.length === 2) {
+              touchState.isTouching = true;
+              touchState.twoFinger = true;
+              const [t1, t2] = e.touches;
+              touchState.startDist = hypot2(t1, t2);
+              touchState.startFov = camera.fov;
+              // Set a pan reference distance based on camera-target distance
+              const distToTarget = camera.position.distanceTo(controls.target);
+              touchState.panRefDist = Math.max(2, Math.min(30, distToTarget));
+            }
+          },
+          { passive: false }
+        );
+
+        canvas.addEventListener(
+          "touchmove",
+          (e) => {
+            if (!touchState.isTouching) return;
+            e.preventDefault();
+
+            if (isMeasuring) {
+              handleMeasureMoveTouch(e);
+              return;
+            }
+
+            if (e.touches.length === 1 && !touchState.twoFinger) {
+              const t = e.touches[0];
+              const dx = t.clientX - touchState.prevX;
+              const dy = t.clientY - touchState.prevY;
+              updateCameraRotation(dx * 0.5, dy * 0.5);
+              touchState.prevX = t.clientX;
+              touchState.prevY = t.clientY;
+            } else if (e.touches.length === 2) {
+              // pinch + two-finger pan
+              const [t1, t2] = e.touches;
+              // Pinch zoom
+              const curDist = hypot2(t1, t2);
+              const dz = (curDist - touchState.startDist) * 0.01;
+              camera.fov = THREE.MathUtils.clamp(
+                touchState.startFov - dz * 10,
+                10,
+                75
+              );
+              camera.updateProjectionMatrix();
+              touchState.startDist = curDist;
+
+              // Two-finger pan: move camera and target the same delta in world space
+              const midX = (t1.clientX + t2.clientX) / 2;
+              const midY = (t1.clientY + t2.clientY) / 2;
+              const dx = midX - touchState.prevX;
+              const dy = midY - touchState.prevY;
+              if (Number.isFinite(dx) && Number.isFinite(dy)) {
+                applyScreenPan(dx, dy, touchState.panRefDist);
+              }
+              touchState.prevX = midX;
+              touchState.prevY = midY;
+            }
+          },
+          { passive: false }
+        );
+
+        canvas.addEventListener(
+          "touchend",
+          () => {
+            touchState.isTouching = false;
+            touchState.twoFinger = false;
+            isRotating = false;
+            rotInd.style.display = "none";
+          },
+          { passive: false }
+        );
+      }
+
+      function hypot2(a, b) {
+        const dx = a.clientX - b.clientX,
+          dy = a.clientY - b.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      // Convert screen-space pan dx/dy to world units at a given depth
+      function applyScreenPan(dx, dy, depth) {
+        // depth: distance from camera along forward to scale pan
+        const vFov = (camera.fov * Math.PI) / 180;
+        const h = 2 * Math.tan(vFov / 2) * depth;
+        const w = h * camera.aspect;
+
+        // world units per pixel
+        const wuPerPxX = w / renderer.domElement.clientWidth;
+        const wuPerPxY = h / renderer.domElement.clientHeight;
+
+        // get camera right & up (world up projected to camera plane)
+        camera.getWorldDirection(vForward);
+        vForward.z = 0;
+        vForward.normalize();
+        vRight.copy(vForward).cross(worldUp).normalize(); // forward × up = right
+        const vUp = worldUp.clone(); // Z-up world
+
+        const panWorld = new THREE.Vector3()
+          .addScaledVector(vRight, -dx * wuPerPxX)
+          .addScaledVector(vUp, +dy * wuPerPxY);
+
+        camera.position.add(panWorld);
+        controls.target.add(panWorld);
+      }
+
+      /* ----------------------------
+       *   Desktop mouse (look + measure)
+       * -------------------------- */
+      renderer.domElement.addEventListener("contextmenu", (e) =>
+        e.preventDefault()
+      );
+
+      renderer.domElement.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+
+        if (isMeasuring) {
+          setMouseNDC(e.clientX, e.clientY);
+          const hit = pickPoint();
+          if (hit) {
+            addMeasurePoint(hit);
+          }
+        } else {
+          isRotating = true;
+          renderer.domElement.requestPointerLock();
+          rotInd.style.display = "block";
+        }
+        e.preventDefault();
+      });
+
+      renderer.domElement.addEventListener("mouseup", (e) => {
+        if (e.button !== 0) return;
+        isRotating = false;
+        document.exitPointerLock();
+        rotInd.style.display = "none";
+      });
+
+      renderer.domElement.addEventListener("mousemove", (e) => {
+        if (isMeasuring) {
+          setMouseNDC(e.clientX, e.clientY);
+          updatePreviewLine(pickPoint());
+          return;
+        }
+        if (!isRotating) return;
+        const dx = e.movementX ?? 0,
+          dy = e.movementY ?? 0;
+        if (dx || dy) updateCameraRotation(dx, dy);
+      });
+
+      /* ----------------------------
+       *   Keyboard
+       * -------------------------- */
+      window.addEventListener("keydown", (e) => {
+        const k = e.key.toLowerCase();
+        keys[k] = true;
+
+        if (k === "r") {
+          resetCamera();
+          e.preventDefault();
+        }
+        if (k === "m") {
+          isMeasuring ? cancelMeasure() : startMeasure();
+          e.preventDefault();
+        }
+        if (k === "escape" && isMeasuring) {
+          cancelMeasure();
+          e.preventDefault();
+        }
+
+        if (
+          [
+            "w",
+            "a",
+            "s",
+            "d",
+            "q",
+            "e",
+            "arrowup",
+            "arrowdown",
+            "arrowleft",
+            "arrowright",
+          ].includes(k)
+        ) {
+          const turbo = !!keys["shift"];
+          showMoveIndicator(new THREE.Vector3(1, 0, 0), turbo); // placeholder; real vector is computed per frame
+        }
+      });
+
+      window.addEventListener("keyup", (e) => {
+        keys[e.key.toLowerCase()] = false;
+        if (
+          !keys["w"] &&
+          !keys["a"] &&
+          !keys["s"] &&
+          !keys["d"] &&
+          !keys["arrowup"] &&
+          !keys["arrowdown"] &&
+          !keys["arrowleft"] &&
+          !keys["arrowright"]
+        )
+          moveInd.style.display = "none";
+      });
+
+      /* ----------------------------
+       *   Camera rotation helpers
+       * -------------------------- */
+      function updateCameraRotation(deltaX, deltaY) {
+        const sensitivity = 0.002;
+        cameraRotation.yaw -= deltaX * sensitivity;
+        cameraRotation.pitch -= deltaY * sensitivity;
+        cameraRotation.pitch = THREE.MathUtils.clamp(
+          cameraRotation.pitch,
+          -Math.PI / 2 + 0.01,
+          Math.PI / 2 - 0.01
+        );
+
+        const qYaw = new THREE.Quaternion().setFromAxisAngle(
+          worldUp,
+          cameraRotation.yaw
+        );
+        const qPitch = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(1, 0, 0),
+          cameraRotation.pitch
+        );
+        const q = new THREE.Quaternion().multiplyQuaternions(qYaw, qPitch);
+        camera.setRotationFromQuaternion(q);
+        updateControlsTarget();
+      }
+
+      function updateControlsTarget() {
+        camera.getWorldDirection(vForward);
+        controls.target
+          .copy(camera.position)
+          .add(vForward.clone().multiplyScalar(10));
+      }
+
+      function resetCamera() {
+        camera.position.set(9, 2, 2);
+        cameraRotation.yaw = 0;
+        cameraRotation.pitch = 0;
+        camera.setRotationFromEuler(new THREE.Euler(0, 0, 0));
+        updateControlsTarget();
+      }
+
+      /* ----------------------------
+       *   Movement update
+       * -------------------------- */
+      function updateMovement() {
+        const speed = keys["shift"] ? runSpeed : baseSpeed;
+        vMove.set(0, 0, 0);
+
+        // Build camera-relative basis in XY plane
+        camera.getWorldDirection(vForward);
+        vForward.z = 0;
+        vForward.normalize();
+        vRight.copy(vForward).cross(worldUp).normalize(); // forward × up = right
+
+        // Keyboard
+        if (keys["w"] || keys["arrowup"]) vMove.add(vForward);
+        if (keys["s"] || keys["arrowdown"]) vMove.sub(vForward);
+        if (keys["a"] || keys["arrowleft"]) vMove.sub(vRight);
+        if (keys["d"] || keys["arrowright"]) vMove.add(vRight);
+        if (keys["q"]) vMove.z += 1;
+        if (keys["e"]) vMove.z -= 1;
+
+        // Joystick (camera-relative)
+        if (joy.active) {
+          vMove.addScaledVector(vForward, joy.y);
+          vMove.addScaledVector(vRight, joy.x);
+        }
+
+        if (vMove.lengthSq() > 0) {
+          vMove.normalize().multiplyScalar(speed);
+          camera.position.add(vMove);
+          controls.target.add(vMove);
+
+          // indicator uses planar vec for arrow + turbo label
+          const planar = vMove.clone();
+          planar.z = 0;
+          showMoveIndicator(planar, !!keys["shift"]);
+
+          if (
+            navigator.vibrate &&
+            (joy.active || keys["w"] || keys["a"] || keys["s"] || keys["d"])
+          ) {
+            try {
+              navigator.vibrate(2);
+            } catch {}
+          }
+        }
+      }
+
+      /* ----------------------------
+       *   Compass (heading from yaw)
+       * -------------------------- */
+      function updateCompass() {
+        const deg =
+          ((THREE.MathUtils.radToDeg(cameraRotation.yaw) % 360) + 360) % 360;
+        compassText.textContent = `${deg
+          .toFixed(0)
+          .padStart(3, "0")}° • ${degToCardinal(deg)}`;
+        compassEl.style.display = "flex";
+      }
+      function degToCardinal(deg) {
+        const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+        return dirs[Math.floor(deg / 45 + 0.5) % 8];
+      }
+
+      /* ----------------------------
+       *   Measurement logic
+       * -------------------------- */
+      function startMeasure() {
+        isMeasuring = true;
+        points.length = 0;
+        clearMeasureVisuals();
+        startMeasureBtn.textContent = "Click First Point";
+        distanceResultEl.textContent = units === "m" ? "0.00 m" : "0.00 ft";
+        measureHint.textContent = "Pick first point…";
+        pointsInfoEl.textContent = "Click first point…";
+        componentsInfoEl.style.display = "none";
+        bearingInfoEl.style.display = "none";
+        clearMeasureBtn.disabled = false;
+        copyMeasureBtn.disabled = true;
+        labelEl.style.display = "none";
+        createPreviewLine();
+      }
+      function cancelMeasure() {
+        isMeasuring = false;
+        startMeasureBtn.textContent = "Start Measure";
+        measureHint.textContent = "Measurement cancelled.";
+        pointsInfoEl.textContent = "Ready. Click first point…";
+        distanceResultEl.textContent = units === "m" ? "0.00 m" : "0.00 ft";
+        clearMeasureBtn.disabled = true;
+        copyMeasureBtn.disabled = true;
+        clearMeasureVisuals();
+      }
+      function clearMeasure() {
+        cancelMeasure();
+        measureHint.textContent = "Cleared.";
+      }
+
+      function createPreviewLine() {
+        if (previewLine) return;
+        const geom = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(),
+          new THREE.Vector3(),
+        ]);
+        previewLine = new THREE.Line(
+          geom,
+          new THREE.LineDashedMaterial({
+            color: 0x9ad5ff,
+            dashSize: 0.2,
+            gapSize: 0.1,
+          })
+        );
+        previewLine.computeLineDistances();
+        previewLine.visible = false;
+        scene.add(previewLine);
+      }
+
+      function clearMeasureVisuals() {
+        if (line) {
+          scene.remove(line);
+          line.geometry.dispose();
+          line = null;
+        }
+        if (previewLine) {
+          scene.remove(previewLine);
+          previewLine.geometry.dispose();
+          previewLine = null;
+        }
+        for (const s of spheres) {
+          scene.remove(s);
+        }
+        spheres.length = 0;
+        labelAnchorA = labelAnchorB = null;
+        labelEl.style.display = "none";
+      }
+
+      function addMeasurePoint(p) {
+        points.push(p.clone());
+        const s = new THREE.Mesh(sphereGeom, sphereMat);
+        s.position.copy(p);
+        scene.add(s);
+        spheres.push(s);
+
+        if (points.length === 1) {
+          pointsInfoEl.textContent = "First point set. Pick second point…";
+          startMeasureBtn.textContent = "Click Second Point";
+          if (previewLine) previewLine.visible = true;
+        } else if (points.length === 2) {
+          finalizeDistance();
+          startMeasureBtn.textContent = "New Measure";
+          pointsInfoEl.textContent =
+            'Measurement complete. Click "New Measure" to start.';
+          isMeasuring = false;
+        }
+      }
+
+      function updatePreviewLine(p) {
+        if (!previewLine || points.length !== 1 || !p) return;
+        const pos = previewLine.geometry.getAttribute("position");
+        pos.setXYZ(0, points[0].x, points[0].y, points[0].z);
+        pos.setXYZ(1, p.x, p.y, p.z);
+        pos.needsUpdate = true;
+        previewLine.computeLineDistances();
+        previewLine.visible = true;
+
+        // live label
+        labelAnchorA = points[0];
+        labelAnchorB = p;
+        const { dist } = distanceComponents(points[0], p);
+        labelEl.style.display = "block";
+        labelEl.textContent = formatDistance(dist);
+      }
+
+      function finalizeDistance() {
+        if (points.length !== 2) return;
+        if (previewLine) {
+          previewLine.visible = false;
+        }
+        // solid line
+        const geom = new THREE.BufferGeometry().setFromPoints(points);
+        line = new THREE.Line(geom, lineMat);
+        scene.add(line);
+
+        labelAnchorA = points[0];
+        labelAnchorB = points[1];
+
+        const { dist, dx, dy, dz, horiz, bearingDeg, bearingCard } =
+          distanceComponents(points[0], points[1]);
+        distanceResultEl.textContent = formatDistance(dist);
+        componentsInfoEl.style.display = "block";
+        componentsInfoEl.textContent = `ΔX: ${formatDistance(
+          dx,
+          true
+        )}  ΔY: ${formatDistance(dy, true)}  ΔZ: ${formatDistance(
+          dz,
+          true
+        )}  •  Horiz: ${formatDistance(horiz)}`;
+        bearingInfoEl.style.display = "block";
+        bearingInfoEl.textContent = `Bearing: ${bearingDeg.toFixed(
+          1
+        )}° ${bearingCard}  •  Elevation Δ: ${formatDistance(dz)}`;
+
+        copyMeasureBtn.disabled = false;
+        updateLabelPosition();
+      }
+
+      function distanceComponents(a, b) {
+        const dx = b.x - a.x,
+          dy = b.y - a.y,
+          dz = b.z - a.z;
+        const horiz = Math.hypot(dx, dy);
+        const dist = Math.hypot(horiz, dz);
+        const bearingRad = Math.atan2(dy, dx);
+        const bearingDeg = (THREE.MathUtils.radToDeg(bearingRad) + 360) % 360;
+        const bearingCard = degToCardinal(bearingDeg);
+        return { dx, dy, dz, horiz, dist, bearingDeg, bearingCard };
+      }
+
+      function formatDistance(m, signed = false) {
+        const sign = signed && m < 0 ? "-" : "";
+        const val = Math.abs(m);
+        if (units === "m") {
+          return `${sign}${val.toFixed(2)} m`;
+        } else {
+          // meters to feet
+          const ft = val * 3.280839895;
+          return `${sign}${ft.toFixed(2)} ft`;
+        }
+      }
+
+      function updateLabelPosition() {
+        if (!labelAnchorA || !labelAnchorB) return;
+        // midpoint
+        tmpV3.copy(labelAnchorA).add(labelAnchorB).multiplyScalar(0.5);
+        const p = tmpV3.clone().project(camera);
+        const x = (p.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+        const y = (-p.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
+        labelEl.style.left = `${x - labelEl.clientWidth / 2}px`;
+        labelEl.style.top = `${y - labelEl.clientHeight / 2}px`;
+        // keep text synced with final distance
+        if (points.length === 2) {
+          const { dist } = distanceComponents(points[0], points[1]);
+          labelEl.textContent = formatDistance(dist);
+        }
+      }
+
+      // Units toggle + copy
+      toggleUnitsBtn.addEventListener("click", () => {
+        units = units === "m" ? "ft" : "m";
+        // refresh UI if we have a measurement
+        if (points.length === 2) {
+          const { dist, dx, dy, dz, horiz, bearingDeg, bearingCard } =
+            distanceComponents(points[0], points[1]);
+          distanceResultEl.textContent = formatDistance(dist);
+          componentsInfoEl.textContent = `ΔX: ${formatDistance(
+            dx,
+            true
+          )}  ΔY: ${formatDistance(dy, true)}  ΔZ: ${formatDistance(
+            dz,
+            true
+          )}  •  Horiz: ${formatDistance(horiz)}`;
+          bearingInfoEl.textContent = `Bearing: ${bearingDeg.toFixed(
+            1
+          )}° ${bearingCard}  •  Elevation Δ: ${formatDistance(dz)}`;
+          updateLabelPosition();
+        } else {
+          distanceResultEl.textContent = units === "m" ? "0.00 m" : "0.00 ft";
+        }
+      });
+
+      copyMeasureBtn.addEventListener("click", async () => {
+        if (points.length !== 2) return;
+        const { dist, dx, dy, dz, horiz, bearingDeg, bearingCard } =
+          distanceComponents(points[0], points[1]);
+        const txt = `Distance: ${formatDistance(dist)}
+Horizontal: ${formatDistance(horiz)}
+ΔX: ${formatDistance(dx, true)}  ΔY: ${formatDistance(
+          dy,
+          true
+        )}  ΔZ: ${formatDistance(dz, true)}
+Bearing: ${bearingDeg.toFixed(1)}° ${bearingCard}`;
+        try {
+          await navigator.clipboard.writeText(txt);
+          measureHint.textContent = "Copied to clipboard ✔️";
+        } catch {
+          measureHint.textContent = "Copy failed ❗";
+        }
+      });
+
+      // Measurement panel buttons
+      startMeasureBtn.addEventListener("click", () =>
+        isMeasuring ? cancelMeasure() : startMeasure()
+      );
+      clearMeasureBtn.addEventListener("click", clearMeasure);
+
+      /* ----------------------------
+       *   Picking helpers
+       * -------------------------- */
+      function setMouseNDC(cx, cy) {
+        mouseNDC.x = (cx / window.innerWidth) * 2 - 1;
+        mouseNDC.y = -(cy / window.innerHeight) * 2 + 1;
+      }
+
+      function pickPoint() {
+        // Try scene intersections first (if meshes are present),
+        // then fall back to Z=0 ground plane.
+        raycaster.setFromCamera(mouseNDC, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+        if (intersects && intersects.length) {
+          return intersects[0].point;
+        }
+        // plane fallback
+        tmpRay.origin.copy(camera.position);
+        tmpRay.direction.copy(raycaster.ray.direction);
+        const hit = new THREE.Vector3();
+        if (tmpRay.intersectPlane(groundPlane, hit)) return hit;
+        return null;
+      }
+
+      // Touch helpers for measure
+      function handleMeasureTouch(e) {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        setMouseNDC(t.clientX, t.clientY);
+        const hit = pickPoint();
+        if (hit) {
+          addMeasurePoint(hit);
+        }
+      }
+      function handleMeasureMoveTouch(e) {
+        if (points.length !== 1 || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        setMouseNDC(t.clientX, t.clientY);
+        updatePreviewLine(pickPoint());
+      }
+
+      /* ----------------------------
+       *   Frame loop & Resize
+       * -------------------------- */
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          updateMovement();
+          controls.update();
+          LCCRender.update();
+          updateCompass();
+          updateLabelPosition();
+          renderer.render(scene, camera);
+        });
+      }
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        if (window.innerWidth < 768) {
+          renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio));
+        } else {
+          renderer.setPixelRatio(window.devicePixelRatio);
+        }
+      });
+
+      // Prevent browser gestures
+      document.addEventListener(
+        "touchmove",
+        (e) => {
+          if (e.touches.length > 1) e.preventDefault();
+        },
+        { passive: false }
+      );
+      ["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
+        document.addEventListener(evt, (e) => e.preventDefault());
+      });
+
+      // Init after short delay
+      setTimeout(() => {
+        setupTouchControls();
+        setupVirtualJoystick();
+        enableUI();
+      }, 800);
+
+      animate();
+    </script>
+  </body>
+</html>
